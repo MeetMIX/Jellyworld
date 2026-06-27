@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # 🎬 LE BACKEND (Jellyfin)
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyworld-backend
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./config:/config
+      - ./cache:/cache
+      # ⚠️ ICI, on mettra les chemins vers tes fichiers vidéos sur ton Ubuntu :
+      - /mnt/medias/films:/media/films:ro
+      - /mnt/medias/series:/media/series:ro
+    environment:
+      - TZ=Europe/Paris
+    restart: unless-stopped
+
+  # 🌐 LE FRONTEND (Ton interface premium)
+  jellyworld-web:
+    image: node:20-alpine
+    container_name: jellyworld-frontend
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../jellyworld-web:/app # Docker Ubuntu va lire le code de ce dossier
+    command: sh -c "npm install && npm run dev"
+    environment:
+      - NEXT_PUBLIC_JELLYFIN_API=http://localhost:8096
+    restart: unless-stopped
