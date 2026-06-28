@@ -6,14 +6,17 @@ export default function MovieRow({ lib }: { lib: any }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
 
+  // 🛠️ FONCTION DE DÉFILEMENT CORRIGÉE ET ULTRA-FIABLE
   const scrollRight = () => {
     if (rowRef.current) {
-      const containerWidth = rowRef.current.clientWidth;
-      rowRef.current.scrollBy({ left: containerWidth * 0.75, behavior: 'smooth' });
+      // On décale manuellement la position du scroll de 400px vers la droite
+      rowRef.current.scrollTo({
+        left: rowRef.current.scrollLeft + 400,
+        behavior: 'smooth'
+      });
     }
   };
 
-  // Convertir les ticks Jellyfin en minutes
   const renderRuntime = (ticks: number) => {
     if (!ticks) return null;
     const minutes = Math.floor(ticks / 600000000);
@@ -29,10 +32,14 @@ export default function MovieRow({ lib }: { lib: any }) {
       </h2>
 
       <div className="relative">
+        {/* Conteneur avec scroll horizontal */}
         <div 
           ref={rowRef}
-          className="flex gap-4 overflow-x-auto pb-2 scroll-smooth"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          className="flex gap-4 overflow-x-auto pb-2 scroll-smooth invisible-scrollbar"
+          style={{ 
+            scrollbarWidth: 'none', 
+            msOverflowStyle: 'none'
+          }}
         >
           {lib.movies.map((movie: any) => {
             const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
@@ -52,7 +59,7 @@ export default function MovieRow({ lib }: { lib: any }) {
                     <div className="w-full h-full flex items-center justify-center opacity-20 text-xs">🎬</div>
                   )}
 
-                  {/* Options au survol flouté */}
+                  {/* Hover flouté */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2">
                     <div className="flex justify-start">
                       <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-[10px] text-white hover:bg-purple-600">⋮</div>
@@ -66,7 +73,7 @@ export default function MovieRow({ lib }: { lib: any }) {
                     </div>
                   </div>
 
-                  {/* Badge de validation */}
+                  {/* Badge vu */}
                   {isWatched && (
                     <div className="absolute top-2 right-2 z-20 w-5 h-5 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-md">
                       ✓
@@ -74,7 +81,7 @@ export default function MovieRow({ lib }: { lib: any }) {
                   )}
                 </div>
 
-                {/* Titre & Année */}
+                {/* Titre */}
                 <div className="mt-2 px-0.5">
                   <h4 className="font-semibold text-xs truncate text-zinc-300 group-hover/card:text-white transition-colors">
                     {movie.Name}
@@ -88,11 +95,15 @@ export default function MovieRow({ lib }: { lib: any }) {
           })}
         </div>
 
-        {/* Bouton de défilement horizontal */}
+        {/* 🔘 LE BOUTON BLANC (Modifié pour forcer l'action et stopper la propagation) */}
         <button 
-          onClick={(e) => { e.stopPropagation(); scrollRight(); }}
+          onClick={(e) => { 
+            e.preventDefault();
+            e.stopPropagation(); 
+            scrollRight(); 
+          }}
           type="button"
-          className="absolute right-3 top-[35%] z-30 w-11 h-11 bg-white text-black rounded-full flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.5)] opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 active:scale-95"
+          className="absolute right-3 top-[35%] z-30 w-11 h-11 bg-white text-black rounded-full flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.6)] opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 active:scale-95 cursor-pointer"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -100,17 +111,16 @@ export default function MovieRow({ lib }: { lib: any }) {
         </button>
       </div>
 
-      {/* 💎 INTERFACE MODALE / POPUP DE DÉTAILS DU FILM */}
+      {/* MODALE POPUP */}
       {selectedMovie && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
           onClick={() => setSelectedMovie(null)}
         >
           <div 
             className="bg-[#0c0e12] border border-zinc-800 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative flex flex-col md:flex-row text-left"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Jaquette gauche dans le popup */}
             <div className="w-full md:w-2/5 aspect-[2/3] md:aspect-auto bg-zinc-950 relative shrink-0">
               <img 
                 src={`http://192.168.220.148:8096/Items/${selectedMovie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`} 
@@ -119,7 +129,6 @@ export default function MovieRow({ lib }: { lib: any }) {
               />
             </div>
 
-            {/* Infos textuelles droite */}
             <div className="p-6 flex flex-col justify-between flex-1 space-y-4">
               <div>
                 <div className="flex justify-between items-start gap-4">
@@ -132,7 +141,6 @@ export default function MovieRow({ lib }: { lib: any }) {
                   </button>
                 </div>
 
-                {/* Métadonnées rapides */}
                 <div className="flex items-center gap-3 text-[11px] font-mono text-zinc-400 mt-2">
                   {selectedMovie.ProductionYear && (
                     <span className="bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">{selectedMovie.ProductionYear}</span>
@@ -145,18 +153,16 @@ export default function MovieRow({ lib }: { lib: any }) {
                   )}
                 </div>
 
-                {/* Synopsis / Aperçu */}
-                <p className="text-xs text-zinc-400 mt-4 leading-relaxed max-h-48 overflow-y-auto pr-2 custom-sidebar-scroll">
+                <p className="text-xs text-zinc-400 mt-4 leading-relaxed max-h-48 overflow-y-auto pr-2">
                   {selectedMovie.Overview || "Aucun résumé disponible pour ce titre."}
                 </p>
               </div>
 
-              {/* Actions du Popup */}
               <div className="flex items-center gap-2 pt-2">
-                <button className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 transition-all">
+                <button className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center justify-center gap-2">
                   ▶ Lecture
                 </button>
-                <button className="px-3 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-800 transition-all">
+                <button className="px-3 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-800">
                   ♡
                 </button>
               </div>
