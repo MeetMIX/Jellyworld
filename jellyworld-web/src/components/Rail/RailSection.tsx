@@ -1,5 +1,5 @@
 import Link from "next/link";
-import MovieCard from "./MovieCard";
+import MovieCard from "./MovieCard/MovieCard";
 import { JellyfinItem } from "@/lib/jellyfin";
 
 interface RailSectionProps {

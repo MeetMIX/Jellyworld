@@ -1,5 +1,5 @@
 import { getHomeData } from "@/lib/jellyfin";
-import NavBar from "@/components/NavBar";
+import NavBar from "@/components/NavBar/NavBar";
 import HeroSection from "@/components/HeroSection";
 import RailSection from "@/components/RailSection";
 

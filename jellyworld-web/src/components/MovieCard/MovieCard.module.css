@@ -1,0 +1,224 @@
+.card{
+    display:block;
+    flex-shrink:0;
+    text-decoration:none;
+}
+
+.thumbnail{
+
+    position:relative;
+    overflow:hidden;
+
+    border-radius:var(--jw-r-card);
+
+    background:var(--jw-card);
+
+    border:1px solid var(--jw-border-subtle);
+
+    transition:
+        transform .25s,
+        border-color .25s,
+        box-shadow .25s;
+
+}
+
+.poster{
+
+    aspect-ratio:2/3;
+
+}
+
+.landscape{
+
+    aspect-ratio:16/9;
+
+}
+
+.image{
+
+    width:100%;
+    height:100%;
+
+    object-fit:cover;
+
+    display:block;
+
+    transition:transform .35s;
+
+}
+
+.overlay{
+
+    position:absolute;
+    inset:0;
+
+    background:linear-gradient(
+        to top,
+        rgba(7,6,11,.92),
+        rgba(7,6,11,.2),
+        transparent
+    );
+
+    opacity:0;
+
+    transition:opacity .25s;
+
+}
+
+.playButton{
+
+    position:absolute;
+
+    inset:0;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    opacity:0;
+
+    transition:opacity .25s;
+
+}
+
+.playCircle{
+
+    width:42px;
+
+    height:42px;
+
+    border-radius:999px;
+
+    background:rgba(255,255,255,.15);
+
+    backdrop-filter:blur(10px);
+
+    border:1px solid rgba(255,255,255,.3);
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    padding-left:3px;
+
+}
+
+.rating{
+
+    position:absolute;
+
+    top:8px;
+
+    right:8px;
+
+    background:rgba(7,6,11,.75);
+
+    backdrop-filter:blur(8px);
+
+    border-radius:8px;
+
+    padding:2px 6px;
+
+    font-size:10px;
+
+    font-weight:700;
+
+    color:#A06EF0;
+
+}
+
+.info{
+
+    padding:8px 2px 0;
+
+}
+
+.title{
+
+    margin:0;
+
+    font-size:11px;
+
+    font-weight:600;
+
+    color:var(--jw-text-2);
+
+    transition:color .25s;
+
+    overflow:hidden;
+
+    white-space:nowrap;
+
+    text-overflow:ellipsis;
+
+}
+
+.subtitle{
+
+    margin-top:3px;
+
+    font-size:10px;
+
+    color:var(--jw-text-3);
+
+}
+
+.progress{
+
+    margin-top:6px;
+
+    height:2px;
+
+    border-radius:2px;
+
+    overflow:hidden;
+
+    background:rgba(255,255,255,.1);
+
+}
+
+.progressFill{
+
+    height:100%;
+
+    background:var(--jw-gradient);
+
+}
+
+.card:hover .thumbnail{
+
+    transform:translateY(-3px) scale(1.04);
+
+    border-color:var(--jw-border-strong);
+
+    box-shadow:0 14px 32px rgba(0,0,0,.55);
+
+}
+
+.card:hover .image{
+
+    transform:scale(1.08);
+
+}
+
+.card:hover .overlay{
+
+    opacity:1;
+
+}
+
+.card:hover .playButton{
+
+    opacity:1;
+
+}
+
+.card:hover .title{
+
+    color:var(--jw-text-1);
+
+}

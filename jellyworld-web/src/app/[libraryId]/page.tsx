@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getAllItemsByLibrary, getFirstUserId, getUserLibraries } from "@/lib/jellyfin";
-import NavBar from "@/components/NavBar";
-import MovieCard from "@/components/MovieCard";
+import NavBar from "@/components/NavBar/NavBar";
+import MovieCard from "@/components/MovieCard/MovieCard";
 
 export const dynamic = "force-dynamic";
 
