@@ -1,29 +1,26 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 
 export default function MovieRow({ lib }: { lib: any }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // 🛠️ SÉCURISATION DU DÉFILEMENT : On cible précisément le conteneur frère
+  // Sécurité pour s'assurer que le composant est bien hydraté côté client avant toute action
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const scrollRight = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // On cherche le conteneur de films qui se trouve juste à côté du bouton (au sein du même parent)
-    const button = e.currentTarget;
-    const parent = button.parentElement;
-    const scrollContainer = parent?.querySelector('.movie-rail') as HTMLDivElement;
-
-    if (scrollContainer) {
-      scrollContainer.scrollBy({
-        left: 500, // Déplacement de 500px à chaque clic
+    if (rowRef.current) {
+      rowRef.current.scrollBy({
+        left: 500,
         behavior: 'smooth'
       });
-    } else if (rowRef.current) {
-      // Solution de secours si querySelector échoue
-      rowRef.current.scrollBy({ left: 500, behavior: 'smooth' });
     }
   };
 
@@ -35,33 +32,40 @@ export default function MovieRow({ lib }: { lib: any }) {
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
+  // Si le composant n'est pas encore prêt côté client, on affiche une version brute sans JS pour éviter le freeze
+  if (!isMounted) {
+    return <div className="h-40 bg-zinc-950/20 animate-pulse rounded-lg" />;
+  }
+
   return (
     <section id={`lib-${lib.id}`} className="space-y-3 scroll-mt-20 relative group">
       <h2 className="text-sm font-bold text-white tracking-wide hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-purple-400 hover:to-pink-500 cursor-pointer flex items-center gap-1 transition-all">
         {lib.name} <span className="text-zinc-600 text-base ml-1 group-hover:text-purple-400">›</span>
       </h2>
 
-      {/* Conteneur parent relatif indispensable pour le positionnement du bouton */}
       <div className="relative">
-        
-        {/* Le Rail de films (On lui ajoute la classe explicite 'movie-rail') */}
+        {/* Rail de défilement */}
         <div 
           ref={rowRef}
-          className="movie-rail flex gap-4 overflow-x-auto pb-4 scroll-smooth min-w-full"
+          className="flex gap-4 overflow-x-auto pb-4 scroll-smooth min-w-full"
           style={{ 
             scrollbarWidth: 'none', 
             msOverflowStyle: 'none'
           }}
         >
           {lib.movies.map((movie: any) => {
-            const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
+            // URL directe simplifiée vers ton conteneur Jellyfin sans dépendance process.env instable
+            const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary`;
             const isWatched = movie.UserData?.Played === true;
 
             return (
               <div 
                 key={movie.Id} 
                 className="w-[150px] shrink-0 group/card cursor-pointer relative select-none"
-                onClick={() => setSelectedMovie(movie)}
+                onClick={() => {
+                  console.log("Clic détecté sur le film :", movie.Name);
+                  setSelectedMovie(movie);
+                }}
               >
                 {/* Jaquette */}
                 <div className="aspect-[2/3] w-full bg-zinc-900 rounded-md overflow-hidden border border-zinc-900 group-hover/card:border-purple-500/50 transition-all duration-200 relative">
@@ -107,12 +111,11 @@ export default function MovieRow({ lib }: { lib: any }) {
           })}
         </div>
 
-        {/* 🔘 LE GROS BOUTON BLANC (Ciblage natif par événement) */}
+        {/* 🔘 Bouton de navigation droite */}
         <button 
           onClick={scrollRight}
           type="button"
-          className="absolute right-3 top-[35%] z-40 w-11 h-11 bg-white text-black rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer pointer-events-auto"
-          aria-label="Défiler à droite"
+          className="absolute right-3 top-[35%] z-40 w-11 h-11 bg-white text-black rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5 pointer-events-none">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -127,12 +130,12 @@ export default function MovieRow({ lib }: { lib: any }) {
           onClick={() => setSelectedMovie(null)}
         >
           <div 
-            className="bg-[#0c0e12] border border-zinc-800 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative flex flex-col md:flex-row text-left"
+            className="bg-[#0c0e12] border border-zinc-800 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative flex flex-col md:flex-row text-left animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full md:w-2/5 aspect-[2/3] md:aspect-auto bg-zinc-950 relative shrink-0">
               <img 
-                src={`http://192.168.220.148:8096/Items/${selectedMovie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`} 
+                src={`http://192.168.220.148:8096/Items/${selectedMovie.Id}/Images/Primary`} 
                 alt="" 
                 className="w-full h-full object-cover"
               />
@@ -144,7 +147,7 @@ export default function MovieRow({ lib }: { lib: any }) {
                   <h3 className="text-xl font-bold text-white tracking-wide">{selectedMovie.Name}</h3>
                   <button 
                     onClick={() => setSelectedMovie(null)}
-                    className="text-zinc-500 hover:text-white text-lg bg-zinc-900/50 w-7 h-7 rounded-full flex items-center justify-center border border-zinc-800"
+                    className="text-zinc-500 hover:text-white text-lg bg-zinc-900/50 w-7 h-7 rounded-full flex items-center justify-center border border-zinc-800 cursor-pointer"
                   >
                     ✕
                   </button>
@@ -168,10 +171,13 @@ export default function MovieRow({ lib }: { lib: any }) {
               </div>
 
               <div className="flex items-center gap-2 pt-2">
-                <button className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center justify-center gap-2">
+                <button 
+                  onClick={() => alert(`Lancement du film : ${selectedMovie.Name}`)}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                >
                   ▶ Lecture
                 </button>
-                <button className="px-3 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-800">
+                <button className="px-3 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-800 cursor-pointer">
                   ♡
                 </button>
               </div>
