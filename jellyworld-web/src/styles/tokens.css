@@ -1,0 +1,52 @@
+/* ═══════════════════════════════════════════════
+   JELLYWORLD — DESIGN SYSTEM TOKENS
+   Palette extraite du logo : violet → rose → rouge
+   ═══════════════════════════════════════════════ */
+
+:root {
+  /* ── Brand gradient (signature visuelle) ── */
+  --jw-violet:   #6B2FD9;
+  --jw-purple:   #8B3FC8;
+  --jw-magenta:  #B83FA0;
+  --jw-pink:     #D43878;
+  --jw-red:      #E03050;
+
+  /* Gradient réutilisable partout */
+  --jw-gradient: linear-gradient(110deg, #6B2FD9 0%, #B83FA0 50%, #E03050 100%);
+  --jw-gradient-text: linear-gradient(110deg, #A06EF0 0%, #D870C0 50%, #F06080 100%);
+
+  /* ── Surfaces ── */
+  --jw-bg:          #07060b;   /* fond global */
+  --jw-surface:     #0f0d18;   /* surface secondaire */
+  --jw-card:        #1a1625;   /* carte */
+  --jw-card-hover:  #221e30;   /* carte hover */
+
+  /* ── Bordures ── */
+  --jw-border:        rgba(139, 63, 200, 0.15);
+  --jw-border-strong: rgba(139, 63, 200, 0.40);
+  --jw-border-subtle: rgba(255, 255, 255, 0.05);
+
+  /* ── Texte ── */
+  --jw-text-1: #f1f5f9;   /* titre / primaire */
+  --jw-text-2: #94879e;   /* secondaire / meta */
+  --jw-text-3: #52445e;   /* muted / placeholder */
+
+  /* ── Overlays ── */
+  --jw-overlay-dark:   rgba(7, 6, 11, 0.85);
+  --jw-overlay-medium: rgba(7, 6, 11, 0.50);
+
+  /* ── Spacing ── */
+  --jw-nav-height: 72px;
+  --jw-page-px:    48px;   /* padding horizontal pages */
+
+  /* ── Radius ── */
+  --jw-r-sm:  6px;
+  --jw-r-md:  10px;
+  --jw-r-lg:  16px;
+  --jw-r-xl:  20px;
+  --jw-r-card: 12px;
+
+  /* ── Transitions ── */
+  --jw-transition: 200ms ease;
+  --jw-transition-slow: 350ms ease;
+}
