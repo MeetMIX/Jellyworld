@@ -1,14 +1,9 @@
 import './globals.css';
-import { Urbanist } from 'next/font/google';
-
-const urbanist = Urbanist({ 
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '700', '900'],
-});
+import React from 'react';
 
 export const metadata = {
-  title: 'JellyWorld - Premium Media Hub',
-  description: 'Votre univers streaming sur mesure',
+  title: 'JellyWorld',
+  description: 'Votre Media Hub Personnel',
 };
 
 export default function RootLayout({
@@ -17,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className="dark">
-      <body className={`${urbanist.className} bg-[#07060b] text-[#f1f5f9] antialiased overflow-x-hidden`}>
+    <html lang="fr" className="bg-[#07060b]">
+      <body className="min-h-screen w-screen text-[#f1f5f9] font-sans antialiased m-0 p-0 overflow-x-hidden">
         {children}
       </body>
     </html>
