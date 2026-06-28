@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const ICONS = {
   home: (
@@ -16,7 +18,7 @@ const ICONS = {
 };
 
 export default function Sidebar({ activeLibraries }: { activeLibraries: any[] }) {
-  const [activeMenu, setActiveMenu] = useState<string>('home');
+  const pathname = usePathname();
 
   return (
     <aside className="w-64 bg-[#0b0c10] border-r border-zinc-900 h-screen fixed top-0 left-0 flex flex-col z-40 select-none">
@@ -40,20 +42,19 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
 
       {/* 🧭 MENU PRINCIPAL */}
       <div className="px-3 py-4 text-xs shrink-0">
-        <a
-          href="#catalog-top"
-          onClick={() => setActiveMenu('home')}
+        <Link
+          href="/"
           className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-left ${
-            activeMenu === 'home'
+            pathname === '/'
               ? 'bg-gradient-to-r from-purple-600/10 via-pink-600/5 to-transparent text-white border-l-2 border-pink-500'
               : 'text-zinc-400 hover:text-white hover:bg-zinc-900/40'
           }`}
         >
-          <span className={activeMenu === 'home' ? 'text-pink-400' : 'text-zinc-500'}>
+          <span className={pathname === '/' ? 'text-pink-400' : 'text-zinc-500'}>
             {ICONS.home}
           </span>
           Accueil
-        </a>
+        </Link>
       </div>
 
       {/* 🗂️ CATEGORIES */}
@@ -64,12 +65,12 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
         
         <nav className="space-y-1">
           {activeLibraries.map((lib) => {
-            const isSelected = activeMenu === lib.id;
+            const targetPath = `/${lib.id}`;
+            const isSelected = pathname === targetPath;
             return (
-              <a
+              <Link
                 key={lib.id}
-                href={`#lib-${lib.id}`}
-                onClick={() => setActiveMenu(lib.id)}
+                href={targetPath}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group text-left ${
                   isSelected 
                     ? 'text-white bg-zinc-900/80 font-bold' 
@@ -80,7 +81,7 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
                   {ICONS.library}
                 </span>
                 <span className="truncate tracking-wide font-medium">{lib.name}</span>
-              </a>
+              </Link>
             );
           })}
         </nav>
