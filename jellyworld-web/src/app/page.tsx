@@ -54,78 +54,86 @@ export default async function Home() {
   );
 
   const activeLibraries = librariesWithMovies.filter(lib => lib.movies.length > 0);
-  
-  // On sélectionne le premier film de la première catégorie pour la section "À la une" (Hero)
   const heroMovie = activeLibraries[0]?.movies[0];
 
   return (
-    <div className="min-h-screen w-screen bg-[#060609] text-[#f1f5f9] font-sans overflow-x-hidden relative">
+    <div className="min-h-screen w-screen bg-[#07060b] text-[#f1f5f9] font-sans overflow-x-hidden relative antialiased selection:bg-purple-600/30">
       
-      {/* 🌌 EFFET DE LUMIÈRE D'ARRIÈRE-PLAN (NEON GLOW) */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[350px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none z-0" />
-      <div className="absolute top-[20%] right-1/4 w-[500px] h-[300px] bg-pink-600/5 rounded-full blur-[130px] pointer-events-none z-0" />
+      {/* 🌌 FLUID NEON BACKDROP GLOWS */}
+      <div className="absolute top-0 left-1/4 w-[700px] h-[400px] bg-purple-600/10 rounded-full blur-[160px] pointer-events-none z-0" />
+      <div className="absolute top-[15%] right-1/4 w-[600px] h-[350px] bg-pink-600/5 rounded-full blur-[140px] pointer-events-none z-0" />
 
-      {/* 🧭 NAVIGATION SUPÉRIEURE (CONFORME À LA MAQUETTE) */}
-      <header className="h-20 px-6 md:px-12 flex items-center justify-between bg-gradient-to-b from-[#060609]/90 to-[#060609]/0 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
-        <div className="flex items-center gap-10">
-          {/* Logo officiel */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <img src="/logo.png" alt="JellyWorld Logo" className="h-9 w-auto object-contain group-hover:scale-105 transition-transform" />
+      {/* 🧭 NAVIGATION SUPÉRIEURE (MAQUETTE ALIGNMENT) */}
+      <header className="h-24 px-8 md:px-16 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/30 to-transparent fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+        <div className="flex items-center gap-12 flex-1">
+          {/* Logo Officiel réaligné */}
+          <Link href="/" className="flex items-center group shrink-0">
+            <img src="/logo.png" alt="JellyWorld Logo" className="h-10 w-auto object-contain transition-transform duration-300 group-hover:scale-102" />
           </Link>
 
-          {/* Liens de navigation centraux */}
-          <nav className="hidden xl:flex items-center gap-6 text-[13px] font-medium text-zinc-400">
+          {/* Liens Centraux rétablis sans blocage Mobile/Desktop */}
+          <nav className="flex items-center gap-8 text-[14px] font-light text-zinc-300/90 tracking-wide pl-4">
             {activeLibraries.map((lib) => (
-              <Link key={lib.Id} href={`/${lib.Id}`} className="hover:text-white transition-colors tracking-wide">
+              <Link key={lib.Id} href={`/${lib.Id}`} className="hover:text-white transition-colors duration-200 relative py-1 after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[2px] after:bg-purple-500 after:transition-all hover:after:w-full">
                 {lib.Name}
               </Link>
             ))}
           </nav>
         </div>
 
-        {/* Icones Droite */}
-        <div className="flex items-center gap-6 text-zinc-400">
-          <button className="hover:text-white transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        {/* Bloc Icônes Droite de la Maquette */}
+        <div className="flex items-center gap-6 text-zinc-300 shrink-0">
+          <button className="hover:text-white transition-colors p-1.5 rounded-full hover:bg-white/5 duration-200">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
           </button>
-          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 p-[1.5px] cursor-pointer">
-            <div className="w-full h-full bg-[#060609] rounded-full flex items-center justify-center text-[10px] font-bold text-white uppercase">A</div>
-          </div>
+          
+          <button className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 via-purple-500 to-pink-500 p-[1.5px] cursor-pointer hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300">
+            <div className="w-full h-full bg-[#07060b] rounded-full flex items-center justify-center text-[10px] font-black text-white uppercase tracking-wider">
+              A
+            </div>
+          </button>
         </div>
       </header>
 
-      {/* 🎬 HERO BANNER (SECTION À LA UNE) */}
+      {/* 🎬 HERO BANNER INTEGRATION */}
       {heroMovie && (
-        <section className="relative h-[70vh] md:h-[80vh] w-full flex items-center px-6 md:px-12 overflow-hidden pt-20">
-          {/* Image de fond avec masquage dégradé cinéma */}
+        <section className="relative h-[85vh] w-full flex items-center px-8 md:px-16 overflow-hidden">
+          {/* Masque dégradé 3 directions pour noyer le fond de la maquette */}
           <div className="absolute inset-0 z-0">
             <img 
               src={heroMovie.backdropUrl || heroMovie.computedImageUrl} 
               alt={heroMovie.Name} 
-              className="w-full h-full object-cover object-center scale-105 filter brightness-[0.45] contrast-[1.05]"
+              className="w-full h-full object-cover object-center filter brightness-[0.5] contrast-[1.02]"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#060609] via-[#060609]/40 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#060609] via-transparent to-transparent" />
+            {/* Dégradé bas vers haut */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#07060b] via-[#07060b]/30 to-transparent" />
+            {/* Dégradé gauche vers droite */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#07060b] via-transparent to-transparent" />
+            {/* Dégradé haut vers bas (pour fondre la barre supérieure) */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent" />
           </div>
 
-          {/* Contenu textuel */}
-          <div className="relative z-10 max-w-2xl space-y-4 md:space-y-6 text-left mt-12">
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20">
+          {/* Métadonnées du film */}
+          <div className="relative z-10 max-w-3xl space-y-5 text-left mt-16">
+            <span className="inline-flex text-[10px] font-black uppercase tracking-[0.25em] text-purple-400 bg-purple-500/10 px-3 py-1 rounded-md border border-purple-500/20 backdrop-blur-md">
               À la une sur JellyWorld
             </span>
-            <h2 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight text-white uppercase leading-tight drop-shadow-md">
+            <h2 className="text-4xl md:text-6xl lg:text-7xl font-black tracking-tight text-white uppercase leading-none filter drop-shadow-md">
               {heroMovie.Name}
             </h2>
-            <p className="text-xs md:text-sm text-zinc-400 line-clamp-3 leading-relaxed font-light drop-shadow">
+            <p className="text-xs md:text-sm text-zinc-400/90 line-clamp-3 leading-relaxed font-normal max-w-2xl drop-shadow">
               {heroMovie.Overview || "Aucune description disponible pour ce média. Cliquez sur détails pour en savoir plus."}
             </p>
             
-            {/* Boutons conformes au design */}
-            <div className="flex items-center gap-4 pt-2">
-              <button className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-lg shadow-purple-600/20 tracking-wide uppercase">
+            {/* Actions boutons style Maquette */}
+            <div className="flex items-center gap-4 pt-3">
+              <button className="flex items-center gap-2.5 bg-gradient-to-r from-purple-600 via-purple-700 to-pink-600 hover:opacity-95 text-white font-bold text-xs px-7 py-3.5 rounded-xl transition-all shadow-lg shadow-purple-600/30 tracking-widest uppercase">
                 <span>▶</span> Regarder Maintenant
               </button>
-              <button className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all border border-white/10 tracking-wide uppercase backdrop-blur-sm">
+              <button className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white font-bold text-xs px-7 py-3.5 rounded-xl transition-all border border-white/5 tracking-widest uppercase backdrop-blur-md">
                 ℹ️ Détails
               </button>
             </div>
@@ -133,24 +141,24 @@ export default async function Home() {
         </section>
       )}
 
-      {/* 🗂️ CATALOGUE ET HORIZONTAL RAILS */}
-      <div className="px-6 md:px-12 pb-24 space-y-12 relative z-20 -mt-12 md:-mt-20">
+      {/* 🗂️ LOGIQUE DE RAILS DES BIBLIOTHÈQUES (ALIGNÉES) */}
+      <div className="px-8 md:px-16 pb-32 space-y-14 relative z-20 -mt-16">
         {activeLibraries.map((lib) => (
-          <section key={lib.Id} className="space-y-4 text-left">
-            <div className="flex justify-between items-center border-b border-white/5 pb-2">
-              <h3 className="text-sm font-black text-white tracking-widest uppercase bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+          <section key={lib.Id} className="space-y-5 text-left">
+            <div className="flex justify-between items-center border-b border-white/5 pb-2.5">
+              <h3 className="text-xs font-black text-white tracking-[0.2em] uppercase bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
                 {lib.Name}
               </h3>
-              <Link href={`/${lib.Id}`} className="text-[11px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider">
+              <Link href={`/${lib.Id}`} className="text-[10px] font-black text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-widest">
                 Voir tout →
               </Link>
             </div>
 
-            {/* Ligne horizontale de films */}
+            {/* Liste horizontale */}
             <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
               {lib.movies.map((movie: any) => (
-                <div key={movie.Id} className="w-[150px] md:w-[170px] shrink-0 group cursor-pointer flex flex-col">
-                  <div className="aspect-[2/3] w-full bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-900 group-hover:border-purple-500/60 transition-all duration-300 shadow-lg relative group-hover:-translate-y-1">
+                <div key={movie.Id} className="w-[140px] md:w-[175px] shrink-0 group cursor-pointer flex flex-col">
+                  <div className="aspect-[2/3] w-full bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-900 group-hover:border-purple-500/50 transition-all duration-300 shadow-xl relative group-hover:-translate-y-1">
                     {movie.ImageTags?.Primary ? (
                       <img 
                         src={movie.computedImageUrl} 
@@ -158,12 +166,11 @@ export default async function Home() {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-700 text-xs font-bold">🎬 NO POSTER</div>
+                      <div className="w-full h-full flex items-center justify-center text-zinc-800 text-xs font-bold">🎬 NO POSTER</div>
                     )}
-                    {/* Overlay d'ombre discret en bas de carte */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   </div>
-                  <p className="mt-3 text-[11px] font-bold truncate text-zinc-400 group-hover:text-white transition-colors tracking-wide pl-1">
+                  <p className="mt-3 text-[11px] font-bold truncate text-zinc-400 group-hover:text-white transition-colors tracking-wide pl-0.5">
                     {movie.Name}
                   </p>
                 </div>
