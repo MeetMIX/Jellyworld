@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 
-// Modèle de données pour les icônes (SVG intégrés pour ne dépendre d'aucune bibliothèque externe)
 const ICONS = {
   home: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -17,15 +16,33 @@ const ICONS = {
 };
 
 export default function Sidebar({ activeLibraries }: { activeLibraries: any[] }) {
-  // Permet de savoir quel menu est sélectionné (par défaut 'home')
   const [activeMenu, setActiveMenu] = useState<string>('home');
+
+  const scrollToLibrary = (id: string) => {
+    setActiveMenu(id);
+    const element = document.getElementById(`lib-${id}`);
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  };
+
+  const scrollToTop = () => {
+    setActiveMenu('home');
+    const container = document.getElementById('catalog-content');
+    if (container) {
+      container.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   return (
     <aside className="w-64 bg-[#0b0c10] border-r border-zinc-900 h-screen fixed top-0 left-0 flex flex-col z-40 select-none">
       
-      {/* 👑 BLOC HEADER : Marque & Identité */}
+      {/* 👑 HEADER */}
       <div className="p-6 border-b border-zinc-900/50 flex items-center gap-3 shrink-0">
-        <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-tr from-blue-600 via-purple-600 to-pink-500 rounded-xl p-[1.5px] shadow-[0_0_20px_rgba(147,51,234,0.25)]">
+        <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-tr from-blue-600 via-purple-600 to-pink-500 rounded-xl p-[1.5px]">
           <div className="w-full h-full bg-[#0b0c10] rounded-[10px] flex items-center justify-center">
             <span className="text-sm">🌐</span>
           </div>
@@ -40,13 +57,13 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
         </div>
       </div>
 
-      {/* 🧭 MENU PRINCIPAL : Fixe et statique */}
+      {/* 🧭 MENU PRINCIPAL */}
       <div className="px-3 py-4 text-xs shrink-0">
         <button
-          onClick={() => setActiveMenu('home')}
+          onClick={scrollToTop}
           className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-left ${
             activeMenu === 'home'
-              ? 'bg-gradient-to-r from-purple-600/10 via-pink-600/5 to-transparent text-white border-l-2 border-pink-500 shadow-sm'
+              ? 'bg-gradient-to-r from-purple-600/10 via-pink-600/5 to-transparent text-white border-l-2 border-pink-500'
               : 'text-zinc-400 hover:text-white hover:bg-zinc-900/40'
           }`}
         >
@@ -57,8 +74,8 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
         </button>
       </div>
 
-      {/* 🗂️ SECTIONS DYNAMIQUES (Tes bibliothèques Jellyfin) : Défilement indépendant */}
-      <div className="px-3 flex-1 overflow-y-auto space-y-2 text-[11px] pb-10 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+      {/* 🗂️ CATEGORIES */}
+      <div className="px-3 flex-1 overflow-y-auto space-y-2 text-[11px] pb-10" style={{ scrollbarWidth: 'none' }}>
         <p className="text-[9px] font-black uppercase text-zinc-500 px-4 mb-2 tracking-widest">
           Catégories
         </p>
@@ -67,11 +84,10 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
           {activeLibraries.map((lib) => {
             const isSelected = activeMenu === lib.id;
             return (
-              <a
+              <button
                 key={lib.id}
-                href={`#lib-${lib.id}`}
-                onClick={() => setActiveMenu(lib.id)}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group text-left ${
+                onClick={() => scrollToLibrary(lib.id)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group text-left ${
                   isSelected 
                     ? 'text-white bg-zinc-900/80 font-bold' 
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-900/40'
@@ -81,7 +97,7 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
                   {ICONS.library}
                 </span>
                 <span className="truncate tracking-wide font-medium">{lib.name}</span>
-              </a>
+              </button>
             );
           })}
         </nav>

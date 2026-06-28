@@ -92,7 +92,7 @@ function MovieListRenderer({ activeLibraries }: { activeLibraries: any[] }) {
                     </div>
                   )}
                 </div>
-                <p className="mt-2 text-[11px] font-bold truncate text-zinc-400 group-hover:text-white transition-colors">
+                <p className="mt-2 text-[11px] font-bold truncate text-zinc-300 group-hover:text-white transition-colors">
                   {movie.Name}
                 </p>
               </div>
@@ -127,16 +127,16 @@ export default async function Home() {
   const activeLibraries = librariesWithMovies.filter(lib => lib.movies.length > 0);
 
   return (
-    <div className="min-h-screen bg-[#07070a] text-[#f1f5f9] flex">
+    <div className="h-screen w-screen bg-[#07070a] text-[#f1f5f9] flex overflow-hidden">
       
-      {/* 👈 MENU LATÉRAL INTELLIGENT (S'affiche à gauche de manière statique et isolée) */}
+      {/* 👈 BARRE LATÉRALE */}
       <Sidebar activeLibraries={activeLibraries} />
 
-      {/* 👉 ZONE DE CONTENU CENTRAL (Décalée de 64 unités pour laisser la place au menu) */}
-      <div className="flex-1 pl-64 min-h-screen flex flex-col">
+      {/* 👉 BLOC DE DROITE (Totalement confiné pour éviter la casse d'interface) */}
+      <div id="catalog-content" className="flex-1 pl-64 h-full overflow-y-auto flex flex-col">
         
-        {/* Topbar supérieure */}
-        <header className="h-16 px-8 flex items-center justify-between bg-[#07070a]/80 backdrop-blur-md border-b border-zinc-900 sticky top-0 z-30">
+        {/* Topbar supérieure fixe au scroll interne */}
+        <header className="h-16 px-8 flex items-center justify-between bg-[#07070a]/90 backdrop-blur-md border-b border-zinc-900 sticky top-0 z-30 shrink-0">
           <div className="relative w-72">
             <input 
               type="text" 
@@ -149,8 +149,8 @@ export default async function Home() {
           </div>
         </header>
 
-        {/* Grilles de films */}
-        <div className="p-8 lg:p-10 space-y-12 flex-1 overflow-y-auto">
+        {/* Contenu pur du catalogue */}
+        <div className="p-8 lg:p-10 space-y-12 flex-1">
           <MovieListRenderer activeLibraries={activeLibraries} />
         </div>
 
