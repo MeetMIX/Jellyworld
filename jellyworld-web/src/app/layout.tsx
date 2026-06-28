@@ -27,8 +27,7 @@ export default function RootLayout({
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* On vire le "flex flex-col" qui écrasait toute la mise en page absolue du lecteur */}
-      <body className="min-h-full bg-[#07060b] m-0 p-0 text-[#f1f5f9]">
+      <body className="min-h-full bg-[#07060b] m-0 p-0 text-[#f1f5f9] overflow-x-hidden">
         {children}
       </body>
     </html>

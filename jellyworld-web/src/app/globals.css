@@ -5,16 +5,15 @@
   --foreground: #f1f5f9;
 }
 
-/* Configuration du thème v4 */
 @theme {
-  --font-sans: 'Urbanist', sans-serif;
+  --font-sans: 'Geist', sans-serif;
 }
 
-/* Styles globaux */
 body {
   background: var(--background);
   color: var(--foreground);
-  background-color: #07060b;
+  margin: 0;
+  padding: 0;
 }
 
 /* Utilitaires personnalisés v4 pour masquer le scroll */
