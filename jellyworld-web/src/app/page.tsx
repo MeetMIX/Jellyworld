@@ -55,7 +55,13 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return data.Items || [];
+    
+    // 🛡️ SÉCURISATION : On pré-calcule l'URL de l'image ici avec la clé serveur pour éliminer tout freeze côté client
+    const apiKey = process.env.JELLYFIN_API_KEY || "";
+    return (data.Items || []).map((item: any) => ({
+      ...item,
+      computedImageUrl: `http://192.168.220.148:8096/Items/${item.Id}/Images/Primary?api_key=${apiKey}`
+    }));
   } catch (error) {
     return [];
   }
@@ -118,7 +124,7 @@ export default async function Home() {
   );
 
   const backdropMovie = activeLibraries.find(l => l.movies.length > 0)?.movies[0];
-  const globalBackdropUrl = backdropMovie ? `http://192.168.220.148:8096/Items/${backdropMovie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}` : null;
+  const globalBackdropUrl = backdropMovie ? backdropMovie.computedImageUrl : null;
 
   return (
     <div className="h-screen bg-[#07070a] text-[#f1f5f9] font-sans antialiased relative overflow-hidden flex tracking-normal">
@@ -193,7 +199,7 @@ export default async function Home() {
                       {sampleMovies.length > 0 ? (
                         <div className="flex w-full h-full opacity-35 group-hover:opacity-50 transition-opacity">
                           {sampleMovies.map((m: any) => (
-                            <img key={m.Id} src={`http://192.168.220.148:8096/Items/${m.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`} alt="" className="w-1/4 h-full object-cover border-r border-black/40 last:border-0" />
+                            <img key={m.Id} src={m.computedImageUrl} alt="" className="w-1/4 h-full object-cover border-r border-black/40 last:border-0" />
                           ))}
                         </div>
                       ) : <div className="w-full h-full flex items-center justify-center text-zinc-700">📁</div>}
