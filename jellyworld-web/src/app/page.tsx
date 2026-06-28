@@ -56,7 +56,7 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
     if (!res.ok) return [];
     const data = await res.json();
     
-    // 🛡️ SÉCURISATION : On pré-calcule l'URL de l'image ici avec la clé serveur pour éliminer tout freeze côté client
+    // 🛡️ SÉCURISATION : On pré-calcule l'URL de l'image ICI sur le serveur pour ne pas faire planter le client
     const apiKey = process.env.JELLYFIN_API_KEY || "";
     return (data.Items || []).map((item: any) => ({
       ...item,
@@ -124,6 +124,7 @@ export default async function Home() {
   );
 
   const backdropMovie = activeLibraries.find(l => l.movies.length > 0)?.movies[0];
+  // 🔧 CORRECTION ICI : On utilise directement la propriété pré-calculée contenant la bonne clé API
   const globalBackdropUrl = backdropMovie ? backdropMovie.computedImageUrl : null;
 
   return (
