@@ -6,14 +6,24 @@ export default function MovieRow({ lib }: { lib: any }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
 
-  // 🛠️ FONCTION DE DÉFILEMENT CORRIGÉE ET ULTRA-FIABLE
-  const scrollRight = () => {
-    if (rowRef.current) {
-      // On décale manuellement la position du scroll de 400px vers la droite
-      rowRef.current.scrollTo({
-        left: rowRef.current.scrollLeft + 400,
+  // 🛠️ SÉCURISATION DU DÉFILEMENT : On cible précisément le conteneur frère
+  const scrollRight = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // On cherche le conteneur de films qui se trouve juste à côté du bouton (au sein du même parent)
+    const button = e.currentTarget;
+    const parent = button.parentElement;
+    const scrollContainer = parent?.querySelector('.movie-rail') as HTMLDivElement;
+
+    if (scrollContainer) {
+      scrollContainer.scrollBy({
+        left: 500, // Déplacement de 500px à chaque clic
         behavior: 'smooth'
       });
+    } else if (rowRef.current) {
+      // Solution de secours si querySelector échoue
+      rowRef.current.scrollBy({ left: 500, behavior: 'smooth' });
     }
   };
 
@@ -31,11 +41,13 @@ export default function MovieRow({ lib }: { lib: any }) {
         {lib.name} <span className="text-zinc-600 text-base ml-1 group-hover:text-purple-400">›</span>
       </h2>
 
+      {/* Conteneur parent relatif indispensable pour le positionnement du bouton */}
       <div className="relative">
-        {/* Conteneur avec scroll horizontal */}
+        
+        {/* Le Rail de films (On lui ajoute la classe explicite 'movie-rail') */}
         <div 
           ref={rowRef}
-          className="flex gap-4 overflow-x-auto pb-2 scroll-smooth invisible-scrollbar"
+          className="movie-rail flex gap-4 overflow-x-auto pb-4 scroll-smooth min-w-full"
           style={{ 
             scrollbarWidth: 'none', 
             msOverflowStyle: 'none'
@@ -48,13 +60,13 @@ export default function MovieRow({ lib }: { lib: any }) {
             return (
               <div 
                 key={movie.Id} 
-                className="w-[150px] shrink-0 group/card cursor-pointer relative"
+                className="w-[150px] shrink-0 group/card cursor-pointer relative select-none"
                 onClick={() => setSelectedMovie(movie)}
               >
                 {/* Jaquette */}
                 <div className="aspect-[2/3] w-full bg-zinc-900 rounded-md overflow-hidden border border-zinc-900 group-hover/card:border-purple-500/50 transition-all duration-200 relative">
                   {movie.ImageTags && movie.ImageTags.Primary ? (
-                    <img src={imageUrl} alt={movie.Name} loading="lazy" className="w-full h-full object-cover" />
+                    <img src={imageUrl} alt={movie.Name} loading="lazy" className="w-full h-full object-cover pointer-events-none" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center opacity-20 text-xs">🎬</div>
                   )}
@@ -95,23 +107,20 @@ export default function MovieRow({ lib }: { lib: any }) {
           })}
         </div>
 
-        {/* 🔘 LE BOUTON BLANC (Modifié pour forcer l'action et stopper la propagation) */}
+        {/* 🔘 LE GROS BOUTON BLANC (Ciblage natif par événement) */}
         <button 
-          onClick={(e) => { 
-            e.preventDefault();
-            e.stopPropagation(); 
-            scrollRight(); 
-          }}
+          onClick={scrollRight}
           type="button"
-          className="absolute right-3 top-[35%] z-30 w-11 h-11 bg-white text-black rounded-full flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.6)] opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+          className="absolute right-3 top-[35%] z-40 w-11 h-11 bg-white text-black rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer pointer-events-auto"
+          aria-label="Défiler à droite"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5 pointer-events-none">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </button>
       </div>
 
-      {/* MODALE POPUP */}
+      {/* POPUP MODALE */}
       {selectedMovie && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
