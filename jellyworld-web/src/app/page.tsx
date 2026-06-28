@@ -75,7 +75,7 @@ export default async function Home() {
       <header className="h-24 px-6 md:px-12 flex items-center justify-between bg-black/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-12">
           <Link href="/" className="block shrink-0">
-            {/* Logo agrandi ici : h-16 et max-w-[220px] */}
+            {/* Logo agrandi ici : h-16(eloignement du bord) et max-w-[220px](taille du logo) */}
             <img 
               src="/logo.png" 
               alt="JellyWorld" 
