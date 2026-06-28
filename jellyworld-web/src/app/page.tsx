@@ -69,77 +69,91 @@ export default async function Home() {
   const heroMovie = activeLibraries[0]?.movies[0];
 
   return (
-    <div className="min-h-screen w-screen bg-[#07060b] text-[#f1f5f9] font-sans overflow-x-hidden relative antialiased">
+    <div className="min-h-screen w-full bg-[#07060b] text-[#f1f5f9] font-sans overflow-x-hidden relative antialiased">
       
-      {/* 🌌 AMBIANCE BACKGROUND */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[350px] bg-purple-600/10 rounded-full blur-[150px] pointer-events-none z-0" />
-
-      {/* 🧭 NAVIGATION COHÉRENTE (Fixée en haut) */}
-      <header className="h-24 px-6 md:px-12 flex items-center justify-between bg-black/60 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
-        <div className="flex items-center gap-12">
-          {/* Le Logo est ici, et UNIQUEMENT ici */}
-          <Link href="/" className="flex items-center shrink-0">
-            <img src="/logo.png" alt="JellyWorld" className="h-12 w-auto object-contain" />
+      {/* 🧭 HEADER NAVIGATION STRICT ET SÉCURISÉ */}
+      <header className="w-full h-20 px-6 md:px-12 flex items-center justify-between bg-[#07060b]/90 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
+        <div className="flex items-center gap-8 md:gap-12 w-full max-w-4xl">
+          {/* Logo bridé en taille pour éviter qu'il explose l'écran */}
+          <Link href="/" className="block shrink-0">
+            <img 
+              src="/logo.png" 
+              alt="JellyWorld" 
+              className="h-10 w-auto max-w-[150px] object-contain block" 
+            />
           </Link>
 
-          {/* Menu horizontal de navigation */}
-          <nav className="flex items-center gap-6 md:gap-8 text-[14px] font-medium text-zinc-300 whitespace-nowrap">
+          {/* Liens de navigation visibles de force */}
+          <nav className="flex items-center gap-6 text-[14px] font-semibold text-zinc-300 overflow-x-auto whitespace-nowrap scrollbar-none">
             {libraries.map((lib: any) => (
-              <Link key={lib.Id} href={`/${lib.Id}`} className="hover:text-white transition-colors duration-200">
+              <Link 
+                key={lib.Id} 
+                href={`/${lib.Id}`} 
+                className="hover:text-white transition-colors duration-200 py-2 block"
+              >
                 {lib.Name}
               </Link>
             ))}
           </nav>
         </div>
 
-        {/* Profil utilisateur à droite */}
-        <div className="flex items-center gap-4 text-zinc-400 shrink-0">
+        {/* Profil à droite */}
+        <div className="flex items-center shrink-0 ml-4">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 p-[1.5px]">
             <div className="w-full h-full bg-[#07060b] rounded-full flex items-center justify-center text-[10px] font-bold text-white">A</div>
           </div>
         </div>
       </header>
 
-      {/* 🎬 HERO BANNER DYNAMIQUE */}
+      {/* 🎬 HERO BANNER RESTRUCTURÉ AVEC PADDING-TOP POUR EVITER LE HEADER */}
       {heroMovie && (
-        <section className="relative h-[80vh] w-full flex items-center px-6 md:px-12 overflow-hidden">
-          {/* Background de la bannière : Uniquement le film ! */}
+        <section className="relative h-[70vh] md:h-[80vh] w-full flex items-center px-6 md:px-12 overflow-hidden pt-20">
+          {/* Image de fond (Affiche ou Backdrop Jellyfin uniquement) */}
           <div className="absolute inset-0 z-0">
             <img 
               src={heroMovie.backdropUrl || heroMovie.computedImageUrl} 
               alt={heroMovie.Name} 
               className="w-full h-full object-cover object-center filter brightness-[0.35] contrast-[1.05]" 
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#07060b] via-[#07060b]/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#07060b] via-[#07060b]/30 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#07060b] via-transparent to-transparent" />
           </div>
 
-          {/* Métadonnées du film superposées */}
-          <div className="relative z-10 max-w-2xl space-y-4 text-left mt-24">
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-purple-400 bg-purple-500/10 px-3 py-1 rounded-md border border-purple-500/20">À la une sur JellyWorld</span>
-            <h2 className="text-4xl md:text-6xl font-black tracking-tight text-white uppercase leading-tight">{heroMovie.Name}</h2>
-            <p className="text-xs md:text-sm text-zinc-400 line-clamp-3 leading-relaxed max-w-xl">{heroMovie.Overview || "Aucune description disponible."}</p>
+          {/* Textes et Boutons */}
+          <div className="relative z-10 max-w-2xl space-y-4 text-left">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-purple-400 bg-purple-500/10 px-3 py-1 rounded-md border border-purple-500/20 inline-block">
+              À la une sur JellyWorld
+            </span>
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight text-white uppercase leading-tight block">
+              {heroMovie.Name}
+            </h1>
+            <p className="text-xs md:text-sm text-zinc-400 line-clamp-3 leading-relaxed max-w-xl block">
+              {heroMovie.Overview || "Aucune description disponible."}
+            </p>
             <div className="flex items-center gap-4 pt-2">
-              <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xs px-6 py-3.5 rounded-xl uppercase tracking-wider shadow-lg shadow-purple-600/20">▶ Regarder Maintenant</button>
-              <button className="bg-white/10 text-white font-bold text-xs px-6 py-3.5 rounded-xl uppercase tracking-wider border border-white/5 backdrop-blur-md">ℹ️ Détails</button>
+              <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xs px-6 py-3.5 rounded-xl uppercase tracking-wider shadow-lg shadow-purple-600/20">
+                ▶ Regarder Maintenant
+              </button>
+              <button className="bg-white/10 text-white font-bold text-xs px-6 py-3.5 rounded-xl uppercase tracking-wider border border-white/5 backdrop-blur-md">
+                ℹ️ Détails
+              </button>
             </div>
           </div>
         </section>
       )}
 
       {/* 🗂️ LES RAILS HORIZONTAUX DE FILMS */}
-      <div className="px-6 md:px-12 pb-24 space-y-12 relative z-20 -mt-12">
+      <div className="px-6 md:px-12 pb-24 space-y-12 relative z-20 mt-8">
         {activeLibraries.map((lib) => (
-          <section key={lib.Id} className="space-y-4 text-left">
+          <section key={lib.Id} className="space-y-4 text-left block">
             <div className="flex justify-between items-center border-b border-white/5 pb-2">
               <h3 className="text-xs font-black text-white tracking-widest uppercase">{lib.Name}</h3>
               <Link href={`/${lib.Id}`} className="text-[11px] font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider">Voir tout →</Link>
             </div>
             
-            {/* Conteneur de défilement horizontal */}
             <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
               {lib.movies.map((movie: any) => (
-                <div key={movie.Id} className="w-[140px] md:w-[170px] shrink-0 group cursor-pointer">
+                <div key={movie.Id} className="w-[140px] md:w-[170px] shrink-0 group cursor-pointer block">
                   <div className="aspect-[2/3] w-full bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-900 group-hover:border-purple-500/60 transition-all duration-300 shadow-lg">
                     <img src={movie.computedImageUrl} alt={movie.Name} className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300" />
                   </div>
