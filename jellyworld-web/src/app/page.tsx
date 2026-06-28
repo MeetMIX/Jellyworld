@@ -1,6 +1,6 @@
 import React from 'react';
 
-// 📂 1. Récupérer les bibliothèques de l'utilisateur (ex: Films, Séries, Dessins Animés...)
+// 📂 1. Récupérer TOUTES les bibliothèques de l'utilisateur
 async function getLibraries() {
   const url = `${process.env.JELLYFIN_INTERNAL_URL}/UserViews`;
   try {
@@ -12,10 +12,12 @@ async function getLibraries() {
       },
       next: { revalidate: 60 }
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error(`Erreur serveurs Jellyfin (UserViews): ${res.status}`);
+      return [];
+    }
     const data = await res.json();
-    // On ne garde que les bibliothèques de films ou de vidéos pour ce cas précis
-    return data.Items.filter((item: any) => item.CollectionType === 'movies' || item.CollectionType === 'homevideos') || [];
+    return data.Items || [];
   } catch (error) {
     console.error("Erreur bibliothèques:", error);
     return [];
@@ -38,6 +40,7 @@ async function getMoviesByLibrary(parentId: string) {
     const data = await res.json();
     return data.Items || [];
   } catch (error) {
+    console.error("Erreur films par bibliothèque:", error);
     return [];
   }
 }
@@ -58,27 +61,54 @@ export default async function Home() {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans antialiased">
+    <div className="min-h-screen bg-black text-white font-sans antialiased selection:bg-purple-500/30">
       {/* Header / Navbar */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-black/60 border-b border-zinc-900 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-8">
-          <span className="text-2xl font-black tracking-tighter bg-gradient-to-r from-purple-400 to-indigo-500 bg-clip-text text-transparent">
-            JELLYWORLD
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-black tracking-tighter bg-gradient-to-r from-purple-400 via-violet-500 to-indigo-500 bg-clip-text text-transparent">
+              JELLYWORLD
+            </span>
+            <span className="text-[10px] uppercase tracking-widest bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-full font-bold border border-purple-500/20">
+              Premium
+            </span>
+          </div>
+          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-400">
+            <a href="#" className="text-white hover:text-white transition-colors">Accueil</a>
+            <a href="#" className="hover:text-white transition-colors">Films</a>
+            <a href="#" className="hover:text-white transition-colors">Séries</a>
+          </nav>
         </div>
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs">
-          M
+
+        <div className="flex items-center gap-4">
+          <div className="relative hidden sm:block">
+            <input 
+              type="text" 
+              placeholder="Rechercher un film, une série..." 
+              className="bg-zinc-900/80 border border-zinc-800 rounded-full py-2 pl-10 pr-4 text-xs w-64 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all text-zinc-200 placeholder:text-zinc-500"
+            />
+            <span className="absolute left-3.5 top-2.5 text-zinc-500 text-xs">🔍</span>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs shadow-md border border-purple-400/20">
+            M
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="px-6 md:px-12 py-8 max-w-7xl mx-auto space-y-16">
         
-        {librariesWithMovies.length === 0 ? (
-          <div className="text-center py-20 text-zinc-500">Aucune bibliothèque de films trouvée.</div>
+        {librariesWithMovies.filter(lib => lib.movies.length > 0).length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-zinc-950/40 border border-dashed border-zinc-900 rounded-2xl text-center p-6">
+            <span className="text-3xl mb-3">📂</span>
+            <p className="text-sm font-medium text-zinc-400">Aucune bibliothèque de films trouvée.</p>
+            <p className="text-xs text-zinc-600 mt-1 max-w-xs">
+              Vérifiez vos accès ou le contenu de vos dossiers sur Jellyfin.
+            </p>
+          </div>
         ) : (
           librariesWithMovies.map((lib) => (
-            // On cache les bibliothèques vides s'il y en a
+            // On cache les bibliothèques qui ne contiennent pas de films (comme les dossiers de séries)
             lib.movies.length > 0 && (
               <section key={lib.id} className="space-y-6">
                 {/* Titre de la bibliothèque dynamique */}
@@ -105,12 +135,21 @@ export default async function Home() {
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             />
                           ) : (
-                            <span className="text-2xl">🎬</span>
+                            <div className="flex flex-col items-center gap-2 text-zinc-700 group-hover:text-zinc-500 transition-colors">
+                              <span className="text-2xl">🎬</span>
+                            </div>
                           )}
                         </div>
-                        <h3 className="font-semibold text-xs truncate text-zinc-200 group-hover:text-purple-400 transition-colors">
-                          {movie.Name}
-                        </h3>
+                        <div className="space-y-1 px-1">
+                          <h3 className="font-semibold text-xs truncate text-zinc-200 group-hover:text-purple-400 transition-colors">
+                            {movie.Name}
+                          </h3>
+                          {movie.ProductionYear && (
+                            <p className="text-[10px] text-zinc-500 font-medium">
+                              {movie.ProductionYear}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
