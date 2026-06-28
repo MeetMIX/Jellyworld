@@ -85,25 +85,36 @@ export default async function Home() {
     lib => lib.movies.length > 0 || lib.name.toLowerCase().includes('collection')
   );
 
+  // Trouver une image de film en arrière-plan pour l'ambiance globale (style Emby)
+  const backdropMovie = activeLibraries.find(l => l.movies.length > 0)?.movies[0];
+  const globalBackdropUrl = backdropMovie ? `http://192.168.220.148:8096/Items/${backdropMovie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}` : null;
+
   return (
-    <div className="h-screen bg-[#070709] text-[#f8fafc] font-sans antialiased relative overflow-hidden flex selection:bg-purple-500/30 tracking-tight">
+    <div className="h-screen bg-[#090a0c] text-[#f1f5f9] font-sans antialiased relative overflow-hidden flex tracking-normal selection:bg-emerald-500/30">
       
-      {/* 👈 SIDEBAR DESIGN MINI & GLASS (Discrète, n'empiète pas sur l'image) */}
-      <aside className="w-64 bg-[#0a0a0f]/40 border-r border-zinc-900/60 h-full flex flex-col backdrop-blur-xl hidden lg:flex shrink-0 z-30">
-        <div className="p-8">
-          <span className="text-sm font-black tracking-[0.2em] bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent flex items-center gap-2">
-            JELLYWORLD <span className="text-[9px] bg-purple-600/20 text-purple-400 px-1.5 py-0.5 rounded-md border border-purple-500/20 font-mono tracking-normal">PREMIUM</span>
-          </span>
+      {/* 🖼️ EMBY BACKDROP COMPONENT : Fond d'ambiance dynamique basé sur le catalogue */}
+      {globalBackdropUrl && (
+        <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000">
+          <img src={globalBackdropUrl} alt="" className="w-full h-full object-cover opacity-[0.06] blur-[3px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#090a0c]/20 via-[#090a0c]/80 to-[#090a0c]" />
+        </div>
+      )}
+
+      {/* 👈 SIDEBAR STYLE EMBY ULTRA-VISIBLE */}
+      <aside className="w-64 bg-[#0c0e12]/90 border-r border-zinc-900 h-full flex flex-col hidden lg:flex shrink-0 z-30">
+        <div className="p-6 border-b border-zinc-900/50 flex items-center gap-2">
+          <span className="text-emerald-500 font-bold text-lg">✦</span>
+          <span className="text-sm font-black tracking-widest text-white">JELLYWORLD</span>
         </div>
 
-        <div className="px-4 py-2 space-y-1 text-xs shrink-0">
-          <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl bg-purple-600/10 text-purple-400 font-bold border border-purple-500/10 shadow-sm">
-            <span>🏠</span> Accueil
+        <div className="px-3 py-4 text-sm shrink-0">
+          <a href="#" className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-emerald-500 text-white font-semibold shadow-md">
+            <span className="text-base">🏠</span> Accueil
           </a>
         </div>
 
-        <div className="px-4 flex-1 overflow-y-auto space-y-3 text-xs pt-6 pb-10 custom-sidebar-scroll">
-          <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-zinc-600 px-4">
+        <div className="px-3 flex-1 overflow-y-auto space-y-2 text-xs pb-10 custom-sidebar-scroll">
+          <p className="text-[11px] font-bold uppercase text-zinc-500 px-4 mb-2 tracking-wider">
             Mes Médias
           </p>
           <nav className="space-y-0.5">
@@ -111,131 +122,114 @@ export default async function Home() {
               <a
                 key={lib.id}
                 href={`#lib-${lib.id}`}
-                className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900/40 border border-transparent hover:border-zinc-800/30 transition-all duration-300 group truncate"
+                className="flex items-center gap-3 px-4 py-2 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800/40 border border-transparent transition-all duration-150 group truncate"
               >
-                <span className="text-zinc-600 group-hover:text-purple-400 transition-colors text-base shrink-0">❖</span>
-                <span className="truncate tracking-wide font-medium group-hover:translate-x-0.5 transition-transform duration-300">{lib.name}</span>
+                <span className="text-zinc-500 group-hover:text-emerald-400 transition-colors text-sm shrink-0">📁</span>
+                <span className="truncate tracking-wide font-medium">{lib.name}</span>
               </a>
             ))}
           </nav>
         </div>
       </aside>
 
-      {/* 👉 ZONE PRINCIPALE DE DÉFILEMENT (À DROITE) */}
-      <main className="flex-1 overflow-y-auto scroll-smooth h-full custom-content-scroll bg-[#070709] relative">
+      {/* 👉 ZONE DE CONTENU PRINCIPALE */}
+      <main className="flex-1 overflow-y-auto scroll-smooth h-full custom-content-scroll bg-transparent relative z-10">
         
-        {/* 🔝 TOPBAR COMPACTE SUSPENDUE */}
-        <header className="h-20 px-10 flex items-center justify-between absolute top-0 left-0 right-0 z-40 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
-          <div className="relative w-80 pointer-events-auto">
+        {/* 🔝 TOPBAR COMPACTE */}
+        <header className="h-16 px-8 flex items-center justify-between bg-[#090a0c]/60 backdrop-blur-md border-b border-zinc-900 sticky top-0 z-40">
+          <div className="relative w-80">
             <input 
               type="text" 
-              placeholder="Rechercher un film, une série..." 
-              className="w-full bg-black/40 border border-zinc-800/60 hover:border-zinc-700/80 rounded-full py-2 pl-4 pr-4 text-xs focus:outline-none focus:border-purple-500/40 focus:bg-zinc-900/40 text-zinc-200 placeholder:text-zinc-500 transition-all duration-300 backdrop-blur-md"
+              placeholder="Rechercher..." 
+              className="w-full bg-zinc-950/50 border border-zinc-800 rounded-md py-1.5 pl-4 pr-4 text-xs focus:outline-none focus:border-emerald-500/50 text-zinc-200 placeholder:text-zinc-600 transition-all"
             />
           </div>
 
-          <div className="flex items-center gap-6 text-zinc-400 text-xs pointer-events-auto">
+          <div className="flex items-center gap-4 text-zinc-400 text-xs">
             <span className="cursor-pointer hover:text-white transition-colors">Applications</span>
-            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-xs text-white shadow-lg">
+            <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-xs text-white">
               M
             </div>
           </div>
         </header>
 
-        {/* 🌌 HERO BANNER HEROIQUE (Le grand retour du style épuré) */}
-        <section className="relative h-[55vh] flex items-end p-10 lg:p-14 overflow-hidden bg-gradient-to-r from-purple-950/20 via-transparent to-transparent">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(107,33,168,0.15),transparent_50%)]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#070709] via-[#070709]/30 to-transparent z-10" />
+        {/* 🎬 CONTENU ET LIGNES DE MÉDIAS */}
+        <div className="p-8 lg:p-10 space-y-10 max-w-[1750px] mx-auto pb-40">
           
-          <div className="relative z-20 max-w-2xl space-y-4 mb-4">
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-md border border-purple-500/20">
-              À la une aujourd'hui
-            </span>
-            <h1 className="text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
-              Bienvenue dans<br />Jellyworld
-            </h1>
-            <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed max-w-lg font-light">
-              Votre lecteur multimédia personnel est prêt. Retrouvez tout votre catalogue synchronisé ici avec une interface réinventée et épurée.
-            </p>
-            <div className="flex items-center gap-3 pt-2">
-              <button className="bg-white text-black font-bold text-xs px-6 py-2.5 rounded-lg hover:bg-zinc-200 transition-all shadow-lg flex items-center gap-2">
-                ▶ Lecture rapide
-              </button>
-              <button className="bg-zinc-900/60 border border-zinc-800 text-zinc-300 font-semibold text-xs px-5 py-2.5 rounded-lg hover:bg-zinc-800 transition-all backdrop-blur-md">
-                Plus d'infos
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* 🎬 CONTENU DES CATALOGUES HORIZONTAUX */}
-        <div className="px-10 lg:px-14 pb-40 space-y-16 relative z-20 -mt-10">
-          
-          {/* SECTION : MES MÉDIAS (Format tuiles épurées) */}
-          <section className="space-y-4">
-            <h3 className="text-[11px] font-bold tracking-[0.2em] uppercase text-zinc-500">Mes Médias</h3>
-            <div className="flex gap-6 overflow-x-auto pb-4 snap-x scrollbar-none">
-              {activeLibraries.map((lib) => (
-                <a 
-                  key={lib.id} 
-                  href={`#lib-${lib.id}`}
-                  className="w-56 shrink-0 bg-[#0f0f15]/60 border border-zinc-900/80 hover:border-zinc-700/50 rounded-xl p-4 transition-all duration-300 group snap-start backdrop-blur-sm"
-                >
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-10 h-10 rounded-lg bg-purple-600/10 border border-purple-500/10 flex items-center justify-center text-purple-400 font-bold text-sm group-hover:bg-purple-600 group-hover:text-white transition-all duration-300">
-                      📂
+          {/* 🟦 VRAI BLOC "MES MÉDIAS" 16/9 DYNAMIQUE (Comme sur Emby) */}
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold text-white tracking-wide">Mes Médias</h3>
+            <div className="flex gap-4 overflow-x-auto pb-2 snap-x scrollbar-none">
+              {activeLibraries.map((lib) => {
+                // Essayer de récupérer jusqu'à 3 images de films pour simuler la grille Emby
+                const sampleMovies = lib.movies.slice(0, 3);
+                
+                return (
+                  <a 
+                    key={lib.id} 
+                    href={`#lib-${lib.id}`}
+                    className="w-72 shrink-0 bg-gradient-to-b from-zinc-900/60 to-zinc-950/90 border border-zinc-800/80 hover:border-zinc-600 rounded-lg overflow-hidden transition-all duration-200 group snap-start shadow-md"
+                  >
+                    {/* Grille d'affiches 16/9 style Emby */}
+                    <div className="aspect-[16/9] w-full bg-zinc-950 flex relative overflow-hidden border-b border-zinc-900/60">
+                      {sampleMovies.length > 0 ? (
+                        <div className="flex w-full h-full opacity-40 group-hover:opacity-60 transition-opacity">
+                          {sampleMovies.map((m: any, idx: number) => (
+                            <img 
+                              key={m.Id}
+                              src={`http://192.168.220.148:8096/Items/${m.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`} 
+                              alt="" 
+                              className="w-1/3 h-full object-cover border-r border-black/40 last:border-0"
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-700">📁</div>
+                      )}
+                      {/* Miroir / Dégradé sombre */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-xs text-zinc-200 group-hover:text-purple-400 truncate transition-colors duration-300">{lib.name}</h4>
-                      <p className="text-[10px] text-zinc-500 mt-0.5 font-medium">{lib.movies.length} titres</p>
+                    <div className="p-3 bg-zinc-950/40">
+                      <h4 className="font-bold text-xs text-zinc-200 group-hover:text-emerald-400 truncate transition-colors">{lib.name}</h4>
                     </div>
-                  </div>
-                </a>
-              ))}
+                  </a>
+                );
+              })}
             </div>
           </section>
 
-          {/* SECTIONS DYNAMIQUES PAR BIBLIOTHÈQUE */}
+          {/* 🟥 CARROUSELS DE FILMS */}
           {activeLibraries.map((lib) => (
-            <section key={lib.id} id={`lib-${lib.id}`} className="space-y-4 scroll-mt-24">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-white tracking-wider uppercase group cursor-pointer flex items-center gap-1">
-                  {lib.name} 
-                  <span className="text-zinc-600 group-hover:text-purple-400 group-hover:translate-x-1 transition-all text-base ml-1">›</span>
-                </h2>
-              </div>
+            <section key={lib.id} id={`lib-${lib.id}`} className="space-y-3 scroll-mt-20">
+              <h2 className="text-sm font-bold text-white tracking-wide hover:text-emerald-400 cursor-pointer transition-colors flex items-center gap-1 group">
+                {lib.name} 
+                <span className="text-zinc-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all text-base ml-1">›</span>
+              </h2>
 
-              {/* Slider Horizontal (Affiches 2/3 de films) */}
-              <div className="flex gap-5 overflow-x-auto pb-4 snap-x scrollbar-thin">
+              <div className="flex gap-4 overflow-x-auto pb-2 snap-x scrollbar-thin">
                 {lib.movies.map((movie: any) => {
                   const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
                   
                   return (
-                    <div 
-                      key={movie.Id} 
-                      className="w-[155px] shrink-0 group snap-start cursor-pointer relative"
-                    >
-                      {/* Jaquette du film */}
-                      <div className="aspect-[2/3] w-full bg-zinc-900 rounded-lg overflow-hidden shadow-md group-hover:shadow-[0_12px_28px_rgba(0,0,0,0.7)] border border-zinc-900 group-hover:border-purple-500/30 transition-all duration-300 ease-out">
+                    <div key={movie.Id} className="w-[150px] shrink-0 group snap-start cursor-pointer">
+                      <div className="aspect-[2/3] w-full bg-zinc-900 rounded-md overflow-hidden shadow-sm group-hover:shadow-lg border border-zinc-900 group-hover:border-zinc-700 transition-all duration-200">
                         {movie.ImageTags && movie.ImageTags.Primary ? (
                           <img 
                             src={imageUrl} 
                             alt={movie.Name}
                             loading="lazy"
-                            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center opacity-20 text-[10px]">🎬</div>
+                          <div className="w-full h-full flex items-center justify-center opacity-20 text-xs">🎬</div>
                         )}
                       </div>
-
-                      {/* Titre & année en dessous */}
-                      <div className="mt-2.5 px-0.5 space-y-0.5">
-                        <h4 className="font-semibold text-xs tracking-wide truncate text-zinc-300 group-hover:text-white transition-colors duration-200">
+                      <div className="mt-2 px-0.5">
+                        <h4 className="font-semibold text-xs truncate text-zinc-300 group-hover:text-white transition-colors">
                           {movie.Name}
                         </h4>
                         {movie.ProductionYear && (
-                          <p className="text-[10px] text-zinc-500 font-medium font-mono">
+                          <p className="text-[10px] text-zinc-500 font-medium font-mono mt-0.5">
                             {movie.ProductionYear}
                           </p>
                         )}
@@ -248,6 +242,18 @@ export default async function Home() {
           ))}
         </div>
       </main>
+
+      <style>{`
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+        .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+        .scrollbar-thin::-webkit-scrollbar { height: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .scrollbar-thin:hover::-webkit-scrollbar-thumb { background: rgba(16,185,129,0.3); }
+        .custom-content-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-content-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-content-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+      `}</style>
     </div>
   );
 }
