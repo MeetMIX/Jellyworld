@@ -2,15 +2,19 @@ import React from 'react';
 
 export const dynamic = 'force-dynamic';
 
+// 🔌 CONFIGURATION JELLYFIN EN DUR POUR LE TEST SÉCURISÉ
+const JELLYFIN_URL = "http://192.168.220.148:8096";
+const JELLYFIN_TOKEN = "0111461657f84b4384c8fe7afe4a50de";
+
 // --- 1. FONCTIONS DE RÉCUPÉRATION DES DONNÉES (SERVEUR) ---
 
 async function getFirstUserId() {
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Users`;
+  const url = `${JELLYFIN_URL}/Users`;
   try {
     const res = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
+        'Authorization': `MediaBrowser Token="${JELLYFIN_TOKEN}"`,
         'Accept': 'application/json'
       },
       cache: 'no-store'
@@ -24,12 +28,12 @@ async function getFirstUserId() {
 }
 
 async function getUserLibraries(userId: string) {
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Users/${userId}/Views`;
+  const url = `${JELLYFIN_URL}/Users/${userId}/Views`;
   try {
     const res = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
+        'Authorization': `MediaBrowser Token="${JELLYFIN_TOKEN}"`,
         'Accept': 'application/json'
       },
       cache: 'no-store'
@@ -43,12 +47,12 @@ async function getUserLibraries(userId: string) {
 }
 
 async function getMoviesByLibrary(parentId: string, userId: string) {
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Users/${userId}/Items?ParentId=${parentId}&IncludeItemTypes=Movie,BoxSet&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags,ProductionYear,UserData&Limit=40`;
+  const url = `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${parentId}&IncludeItemTypes=Movie,BoxSet&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags,ProductionYear,UserData&Limit=40`;
   try {
     const res = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
+        'Authorization': `MediaBrowser Token="${JELLYFIN_TOKEN}"`,
         'Accept': 'application/json'
       },
       cache: 'no-store'
@@ -56,18 +60,16 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
     if (!res.ok) return [];
     const data = await res.json();
     
-    const apiKey = process.env.JELLYFIN_API_KEY || "";
     return (data.Items || []).map((item: any) => ({
       ...item,
-      computedImageUrl: `http://192.168.220.148:8096/Items/${item.Id}/Images/Primary?api_key=${apiKey}`
+      computedImageUrl: `${JELLYFIN_URL}/Items/${item.Id}/Images/Primary?api_key=${JELLYFIN_TOKEN}`
     }));
   } catch (error) {
     return [];
   }
 }
 
-// --- 2. COMPOSANT COMPAGNON (CLIENT-SIDE DANS LE MÊME FICHIER) ---
-// On utilise une astuce Next.js : un sous-composant standard qui s'occupe de l'affichage pur
+// --- 2. COMPOSANT COMPAGNON D'AFFICHAGE BRUT ---
 
 function MovieListRenderer({ activeLibraries }: { activeLibraries: any[] }) {
   return (
@@ -104,15 +106,16 @@ function MovieListRenderer({ activeLibraries }: { activeLibraries: any[] }) {
   );
 }
 
-// --- 3. PAGE PRINCIPALE (SERVEUR) ---
+// --- 3. PAGE PRINCIPALE ---
 
 export default async function Home() {
   const userId = await getFirstUserId();
   
   if (!userId) {
     return (
-      <div className="h-screen w-screen bg-[#07070a] text-white flex items-center justify-center">
-        <p className="text-sm text-zinc-400">Backend Jellyfin injoignable (Maintenance)</p>
+      <div className="h-screen w-screen bg-[#07070a] text-white flex flex-col items-center justify-center gap-2">
+        <p className="text-sm font-bold text-red-500">Erreur : L'application n'arrive pas à joindre Jellyfin.</p>
+        <p className="text-xs text-zinc-500">Adresse tentée : {JELLYFIN_URL}</p>
       </div>
     );
   }
