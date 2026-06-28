@@ -72,13 +72,17 @@ export default async function Home() {
     <div className="min-h-screen w-full bg-[#07060b] text-[#f1f5f9] relative antialiased">
       
       {/* 🧭 NAVIGATION */}
-      <header className="h-20 px-6 md:px-12 flex items-center justify-between bg-black/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
+      <header className="h-24 px-6 md:px-12 flex items-center justify-between bg-black/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-12">
           <Link href="/" className="block shrink-0">
-            <img src="/logo.png" alt="JellyWorld" className="h-10 w-auto object-contain" />
+            {/* Logo agrandi ici : h-16 et max-w-[220px] */}
+            <img 
+              src="/logo.png" 
+              alt="JellyWorld" 
+              className="h-16 w-auto max-w-[220px] object-contain block transition-transform duration-300 hover:scale-102" 
+            />
           </Link>
 
-          {/* Navigation isolée et cliquable de force */}
           <nav className="flex items-center gap-6 text-[14px] font-medium text-zinc-300 relative z-50">
             {libraries.map((lib: any) => (
               <Link 
@@ -99,7 +103,7 @@ export default async function Home() {
 
       {/* 🎬 HERO BANNER */}
       {heroMovie && (
-        <section className="relative h-[80vh] w-full flex items-center px-6 md:px-12 overflow-hidden pt-20">
+        <section className="relative h-[80vh] w-full flex items-center px-6 md:px-12 overflow-hidden pt-24">
           <div className="absolute inset-0 z-0">
             <img 
               src={heroMovie.backdropUrl || heroMovie.computedImageUrl} 
