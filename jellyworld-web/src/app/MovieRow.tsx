@@ -7,7 +7,6 @@ export default function MovieRow({ lib }: { lib: any }) {
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Sécurité pour s'assurer que le composant est bien hydraté côté client avant toute action
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -15,7 +14,6 @@ export default function MovieRow({ lib }: { lib: any }) {
   const scrollRight = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-
     if (rowRef.current) {
       rowRef.current.scrollBy({
         left: 500,
@@ -32,7 +30,6 @@ export default function MovieRow({ lib }: { lib: any }) {
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  // Si le composant n'est pas encore prêt côté client, on affiche une version brute sans JS pour éviter le freeze
   if (!isMounted) {
     return <div className="h-40 bg-zinc-950/20 animate-pulse rounded-lg" />;
   }
@@ -48,34 +45,44 @@ export default function MovieRow({ lib }: { lib: any }) {
         <div 
           ref={rowRef}
           className="flex gap-4 overflow-x-auto pb-4 scroll-smooth min-w-full"
-          style={{ 
-            scrollbarWidth: 'none', 
-            msOverflowStyle: 'none'
-          }}
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {lib.movies.map((movie: any) => {
-            // URL directe simplifiée vers ton conteneur Jellyfin sans dépendance process.env instable
+            // 🔧 Syntaxe Jellyfin standardisée pour les images
             const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary`;
-            const isWatched = movie.UserData?.Played === true;
 
             return (
               <div 
                 key={movie.Id} 
                 className="w-[150px] shrink-0 group/card cursor-pointer relative select-none"
-                onClick={() => {
-                  console.log("Clic détecté sur le film :", movie.Name);
-                  setSelectedMovie(movie);
-                }}
+                onClick={() => setSelectedMovie(movie)}
               >
                 {/* Jaquette */}
                 <div className="aspect-[2/3] w-full bg-zinc-900 rounded-md overflow-hidden border border-zinc-900 group-hover/card:border-purple-500/50 transition-all duration-200 relative">
-                  {movie.ImageTags && movie.ImageTags.Primary ? (
-                    <img src={imageUrl} alt={movie.Name} loading="lazy" className="w-full h-full object-cover pointer-events-none" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center opacity-20 text-xs">🎬</div>
-                  )}
+                  {movie.ImageTags?.Primary ? (
+                    <img 
+                      src={imageUrl} 
+                      alt={movie.Name} 
+                      loading="lazy" 
+                      className="w-full h-full object-cover pointer-events-none"
+                      onError={(e) => {
+                        // 🛡️ Si Jellyfin renvoie un 404, on remplace par un bloc neutre pour éviter le soft-crash
+                        e.currentTarget.style.display = 'none';
+                        const placeholder = e.currentTarget.nextElementSibling as HTMLDivElement;
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
 
-                  {/* Hover flouté */}
+                  {/* Placeholder de secours en cas de 404 */}
+                  <div 
+                    className="w-full h-full flex items-center justify-center bg-zinc-950 opacity-30 text-xs" 
+                    style={{ display: movie.ImageTags?.Primary ? 'none' : 'flex' }}
+                  >
+                    🎬
+                  </div>
+
+                  {/* Hover Actions */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2">
                     <div className="flex justify-start">
                       <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-[10px] text-white hover:bg-purple-600">⋮</div>
@@ -89,8 +96,7 @@ export default function MovieRow({ lib }: { lib: any }) {
                     </div>
                   </div>
 
-                  {/* Badge vu */}
-                  {isWatched && (
+                  {movie.UserData?.Played && (
                     <div className="absolute top-2 right-2 z-20 w-5 h-5 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-md">
                       ✓
                     </div>
@@ -111,7 +117,7 @@ export default function MovieRow({ lib }: { lib: any }) {
           })}
         </div>
 
-        {/* 🔘 Bouton de navigation droite */}
+        {/* 🔘 Bouton Blanc de défilement */}
         <button 
           onClick={scrollRight}
           type="button"
@@ -130,7 +136,7 @@ export default function MovieRow({ lib }: { lib: any }) {
           onClick={() => setSelectedMovie(null)}
         >
           <div 
-            className="bg-[#0c0e12] border border-zinc-800 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative flex flex-col md:flex-row text-left animate-in fade-in zoom-in-95 duration-150"
+            className="bg-[#0c0e12] border border-zinc-800 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl relative flex flex-col md:flex-row text-left"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full md:w-2/5 aspect-[2/3] md:aspect-auto bg-zinc-950 relative shrink-0">
@@ -138,6 +144,7 @@ export default function MovieRow({ lib }: { lib: any }) {
                 src={`http://192.168.220.148:8096/Items/${selectedMovie.Id}/Images/Primary`} 
                 alt="" 
                 className="w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.src = ""; }}
               />
             </div>
 
@@ -172,7 +179,7 @@ export default function MovieRow({ lib }: { lib: any }) {
 
               <div className="flex items-center gap-2 pt-2">
                 <button 
-                  onClick={() => alert(`Lancement du film : ${selectedMovie.Name}`)}
+                  onClick={() => alert(`Demande de lecture envoyée pour : ${selectedMovie.Name}`)}
                   className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   ▶ Lecture
