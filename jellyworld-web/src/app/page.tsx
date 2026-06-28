@@ -86,11 +86,7 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-[#101214] text-gray-200 font-sans antialiased relative overflow-x-hidden selection:bg-green-500/30">
       
-      {/* 🌌 BACKGROUND IMMERSIF (Style Emby) */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.03] pointer-events-none"
-        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1600')` }}
-      />
+      {/* 🌌 BACKGROUND IMMERSIF */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-[#101214]/95 to-[#101214] pointer-events-none" />
 
       {/* 🔲 STRUCTURE PRINCIPALE */}
@@ -98,14 +94,12 @@ export default async function Home() {
         
         {/* 👈 SIDEBAR STYLE EMBY */}
         <aside className="w-64 bg-[#141619]/95 border-r border-zinc-800/40 h-screen sticky top-0 overflow-y-auto flex flex-col backdrop-blur-md hidden lg:flex">
-          {/* Logo / Brand */}
           <div className="p-5 border-b border-zinc-800/40 flex items-center gap-2.5">
             <span className="text-xl font-black tracking-tighter text-white flex items-center gap-1.5">
               <span className="text-green-500 text-2xl">❖</span> JELLYWORLD
             </span>
           </div>
 
-          {/* Recherche rapide */}
           <div className="p-4">
             <input 
               type="text" 
@@ -114,7 +108,6 @@ export default async function Home() {
             />
           </div>
 
-          {/* Navigation */}
           <div className="px-3 py-2 flex-1 space-y-6 text-xs">
             <div className="space-y-0.5">
               <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-md bg-green-600/10 text-green-400 font-medium border border-green-500/20">
@@ -126,7 +119,7 @@ export default async function Home() {
               <p className="text-[10px] font-bold tracking-wider uppercase text-zinc-500 px-3 mb-2">
                 Mes Médias
               </p>
-              <nav className="space-y-0.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+              <nav className="space-y-0.5 max-h-[60vh] overflow-y-auto pr-1">
                 {activeLibraries.map((lib) => (
                   <a
                     key={lib.id}
@@ -165,10 +158,10 @@ export default async function Home() {
           {/* 🎬 CONTENU DES CARROUSELS HORIZONTAUX */}
           <div className="p-8 space-y-12 max-w-[1600px] mx-auto">
             
-            {/* SECTION 1 : VUE EN MOSAÏQUE DES MÉDIAS (HAUT DE PAGE) */}
+            {/* SECTION : MES MÉDIAS */}
             <section className="space-y-4">
               <h2 className="text-lg font-semibold text-white tracking-wide">Mes Médias</h2>
-              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none snap-x">
+              <div className="flex gap-4 overflow-x-auto pb-3 snap-x">
                 {activeLibraries.map((lib) => {
                   const sampleMovie = lib.movies[0];
                   const imageUrl = sampleMovie ? `http://192.168.220.148:8096/Items/${sampleMovie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}` : null;
@@ -199,8 +192,8 @@ export default async function Home() {
                   </h2>
                 </div>
 
-                {/* FIL HORIZONTAL DÉFILANT (Style Emby) */}
-                <div className="flex gap-4 overflow-x-auto pb-4 custom-horizontal-scrollbar snap-x">
+                {/* FIL HORIZONTAL DÉFILANT */}
+                <div className="flex gap-4 overflow-x-auto pb-4 snap-x">
                   {lib.movies.map((movie: any) => {
                     const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
                     
@@ -209,7 +202,6 @@ export default async function Home() {
                         key={movie.Id} 
                         className="w-44 shrink-0 bg-[#141619] border border-zinc-800/30 rounded-md overflow-hidden hover:border-green-500/40 transition-all duration-200 shadow-lg cursor-pointer group snap-start"
                       >
-                        {/* Affiche au format 2/3 (Verticale) */}
                         <div className="aspect-[2/3] w-full bg-[#1c2024] flex items-center justify-center relative border-b border-zinc-800/60">
                           {movie.ImageTags && movie.ImageTags.Primary ? (
                             <img 
@@ -222,7 +214,6 @@ export default async function Home() {
                             <span className="text-xl opacity-20">🎬</span>
                           )}
                         </div>
-                        {/* Légende du bas */}
                         <div className="p-2.5 bg-[#141619] space-y-0.5">
                           <h3 className="font-medium text-[11px] tracking-wide truncate text-zinc-300 group-hover:text-white">
                             {movie.Name}
@@ -242,27 +233,6 @@ export default async function Home() {
           </div>
         </main>
       </div>
-
-      {/* Styles CSS injectés pour masquer/personnaliser les barres de défilement horizontales */}
-      <style jsx global>{`
-        .scrollbar-none::-webkit-scrollbar { display: none; }
-        .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        .custom-horizontal-scrollbar::-webkit-scrollbar {
-          height: 6px;
-        }
-        .custom-horizontal-scrollbar::-webkit-scrollbar-track {
-          background: rgba(0,0,0,0.1);
-        }
-        .custom-horizontal-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.05);
-          border-radius: 99px;
-        }
-        .custom-horizontal-scrollbar:hover::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.15);
-        }
-      `}</style>
-
     </div>
   );
 }
