@@ -1,6 +1,9 @@
 import React from 'react';
 import MovieRow from './MovieRow';
 
+// ⚡ FORCE NEXT.JS À INTERROGER LE BACKEND À CHAQUE CHARGEMENT (FINI LE BLOCAGE DE MAINTENANCE)
+export const dynamic = 'force-dynamic';
+
 async function getFirstUserId() {
   const url = `${process.env.JELLYFIN_INTERNAL_URL}/Users`;
   try {
@@ -10,13 +13,12 @@ async function getFirstUserId() {
         'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
         'Accept': 'application/json'
       },
-      next: { revalidate: 15 } // Révalidation plus rapide (15s) pour capter le retour du backend
+      cache: 'no-store' // Évite aussi le cache au niveau du fetch
     });
     if (!res.ok) return null;
     const users = await res.json();
     return users[0]?.Id || null;
   } catch (error) {
-    // Si le serveur est éteint ou inaccessible, on attrape l'erreur ici
     return null;
   }
 }
@@ -30,7 +32,7 @@ async function getUserLibraries(userId: string) {
         'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
         'Accept': 'application/json'
       },
-      next: { revalidate: 15 }
+      cache: 'no-store'
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -49,7 +51,7 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
         'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
         'Accept': 'application/json'
       },
-      next: { revalidate: 15 }
+      cache: 'no-store'
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -62,17 +64,15 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
 export default async function Home() {
   const userId = await getFirstUserId();
   
-  // 🚧 ÉCRAN DE MAINTENANCE : Si l'ID utilisateur est introuvable (serveur Jelliworld/Jellyfin down)
+  // 🚧 ÉCRAN DE MAINTENANCE
   if (!userId) {
     return (
       <div className="h-screen w-screen bg-[#07070a] text-[#f1f5f9] font-sans flex flex-col items-center justify-center relative overflow-hidden p-6 text-center select-none">
-        {/* Cercles de lumière en arrière-plan aux couleurs du thème */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-tr from-purple-600 via-pink-600 to-red-500 rounded-full opacity-10 blur-[120px] pointer-events-none" />
         <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-blue-600 rounded-full opacity-5 blur-[100px] pointer-events-none" />
 
-        <div className="relative z-10 max-w-md space-y-6 animate-fade-in">
-          {/* Logo Prisme de Maintenance */}
-          <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-blue-600 via-purple-600 via-pink-600 to-red-500 rounded-2xl p-[2px] shadow-[0_0_40px_rgba(219,39,119,0.25)] flex items-center justify-center transform hover:scale-105 transition-transform duration-500">
+        <div className="relative z-10 max-w-md space-y-6">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-tr from-blue-600 via-purple-600 via-pink-600 to-red-500 rounded-2xl p-[2px] shadow-[0_0_40px_rgba(219,39,119,0.25)] flex items-center justify-center">
             <div className="w-full h-full bg-[#07070a] rounded-[14px] flex items-center justify-center">
               <span className="text-xl animate-pulse">🛠️</span>
             </div>
@@ -87,7 +87,6 @@ export default async function Home() {
             </p>
           </div>
 
-          {/* Badge ASAP style Néon */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-red-500/10 border border-pink-500/20 shadow-inner">
             <span className="w-2 h-2 rounded-full bg-pink-500 animate-ping" />
             <span className="text-[11px] font-black tracking-widest text-pink-400 uppercase font-mono">
@@ -95,16 +94,15 @@ export default async function Home() {
             </span>
           </div>
 
-          {/* Petit indicateur discret */}
           <p className="text-[10px] text-zinc-600 font-medium pt-4 tracking-wide">
-            Tentative de reconnexion automatique en arrière-plan...
+            Rafraîchissez la page pour tenter une reconnexion...
           </p>
         </div>
       </div>
     );
   }
 
-  // --- RENDU NORMAL DU CATALOGUE SI LE BACKEND RÉPOND ---
+  // --- RENDU NORMAL DU CATALOGUE ---
   let librariesWithMovies = [];
   const libraries = await getUserLibraries(userId);
   
