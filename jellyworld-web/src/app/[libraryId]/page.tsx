@@ -29,7 +29,9 @@ export default async function LibraryPage({ params }: { params: { libraryId: str
   return (
     <div className="min-h-screen w-full bg-[#07060b] text-[#f1f5f9] pt-28 px-6 md:px-12">
       <div className="mb-6">
-        <Link href="/" className="text-xs font-bold text-purple-400 hover:underline">← Retour à l'accueil</Link>
+        <Link href="/" className="text-xs font-bold text-purple-400 hover:underline">
+          ← Retour à l'accueil
+        </Link>
       </div>
       
       <h1 className="text-2xl font-black uppercase tracking-wider mb-8 border-b border-white/5 pb-4">
