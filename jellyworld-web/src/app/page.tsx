@@ -127,15 +127,18 @@ export default async function Home() {
   const activeLibraries = librariesWithMovies.filter(lib => lib.movies.length > 0);
 
   return (
-    <div className="h-screen w-screen bg-[#07070a] text-[#f1f5f9] flex overflow-hidden">
+    <div className="h-screen w-screen bg-[#07070a] text-[#f1f5f9] flex overflow-hidden scroll-smooth">
       
-      {/* 👈 BARRE LATÉRALE */}
+      {/* 👈 BARRE LATÉRALE FIXE */}
       <Sidebar activeLibraries={activeLibraries} />
 
-      {/* 👉 BLOC DE DROITE (Totalement confiné pour éviter la casse d'interface) */}
-      <div id="catalog-content" className="flex-1 pl-64 h-full overflow-y-auto flex flex-col">
+      {/* 👉 COLONNE DE DROITE : SEULE ZONE DE SCROLL DE L'APPLICATION */}
+      <div className="flex-1 pl-64 h-screen overflow-y-auto flex flex-col">
         
-        {/* Topbar supérieure fixe au scroll interne */}
+        {/* Point d'ancrage invisible pour le bouton "Accueil" */}
+        <div id="catalog-top" className="scroll-mt-0" />
+        
+        {/* Topbar supérieure collée en haut au scroll */}
         <header className="h-16 px-8 flex items-center justify-between bg-[#07070a]/90 backdrop-blur-md border-b border-zinc-900 sticky top-0 z-30 shrink-0">
           <div className="relative w-72">
             <input 
@@ -149,7 +152,7 @@ export default async function Home() {
           </div>
         </header>
 
-        {/* Contenu pur du catalogue */}
+        {/* Le catalogue et ses lignes */}
         <div className="p-8 lg:p-10 space-y-12 flex-1">
           <MovieListRenderer activeLibraries={activeLibraries} />
         </div>

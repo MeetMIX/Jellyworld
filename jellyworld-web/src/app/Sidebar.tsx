@@ -18,25 +18,6 @@ const ICONS = {
 export default function Sidebar({ activeLibraries }: { activeLibraries: any[] }) {
   const [activeMenu, setActiveMenu] = useState<string>('home');
 
-  const scrollToLibrary = (id: string) => {
-    setActiveMenu(id);
-    const element = document.getElementById(`lib-${id}`);
-    if (element) {
-      element.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }
-  };
-
-  const scrollToTop = () => {
-    setActiveMenu('home');
-    const container = document.getElementById('catalog-content');
-    if (container) {
-      container.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
   return (
     <aside className="w-64 bg-[#0b0c10] border-r border-zinc-900 h-screen fixed top-0 left-0 flex flex-col z-40 select-none">
       
@@ -59,8 +40,9 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
 
       {/* 🧭 MENU PRINCIPAL */}
       <div className="px-3 py-4 text-xs shrink-0">
-        <button
-          onClick={scrollToTop}
+        <a
+          href="#catalog-top"
+          onClick={() => setActiveMenu('home')}
           className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 text-left ${
             activeMenu === 'home'
               ? 'bg-gradient-to-r from-purple-600/10 via-pink-600/5 to-transparent text-white border-l-2 border-pink-500'
@@ -71,7 +53,7 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
             {ICONS.home}
           </span>
           Accueil
-        </button>
+        </a>
       </div>
 
       {/* 🗂️ CATEGORIES */}
@@ -84,10 +66,11 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
           {activeLibraries.map((lib) => {
             const isSelected = activeMenu === lib.id;
             return (
-              <button
+              <a
                 key={lib.id}
-                onClick={() => scrollToLibrary(lib.id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group text-left ${
+                href={`#lib-${lib.id}`}
+                onClick={() => setActiveMenu(lib.id)}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group text-left ${
                   isSelected 
                     ? 'text-white bg-zinc-900/80 font-bold' 
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-900/40'
@@ -97,7 +80,7 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
                   {ICONS.library}
                 </span>
                 <span className="truncate tracking-wide font-medium">{lib.name}</span>
-              </button>
+              </a>
             );
           })}
         </nav>
