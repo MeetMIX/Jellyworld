@@ -79,7 +79,7 @@ export default async function Home() {
             <img 
               src="/logo.png" 
               alt="JellyWorld" 
-              className="h-26 w-auto max-w-[220px] object-contain block transition-transform duration-300 hover:scale-102" 
+              className="h-56 w-auto max-w-[220px] object-contain block transition-transform duration-300 hover:scale-102" 
             />
           </Link>
 
