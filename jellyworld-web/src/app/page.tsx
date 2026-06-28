@@ -42,9 +42,9 @@ async function getUserLibraries(userId: string) {
   }
 }
 
-// 🎬 3. Récupérer les films d'une bibliothèque spécifique
+// 🎬 3. Récupérer les films d'une bibliothèque spécifique (Limité à 30 pour la performance)
 async function getMoviesByLibrary(parentId: string) {
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?ParentId=${parentId}&IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=25`;
+  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?ParentId=${parentId}&IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=30`;
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -84,88 +84,86 @@ export default async function Home() {
   const activeLibraries = librariesWithMovies.filter(lib => lib.movies.length > 0);
 
   return (
-    <div className="min-h-screen bg-[#090a0c] text-[#e2e8f0] font-sans antialiased relative overflow-x-hidden selection:bg-green-500/30 tracking-tight">
+    <div className="min-h-screen bg-[#0a0c0e] text-[#f1f5f9] font-sans antialiased relative overflow-x-hidden selection:bg-emerald-500/30">
       
-      {/* 🌌 FLUID GLASS BACKDROP LAYER (Effet d'ambiance cinéma en arrière-plan) */}
-      <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-[#1b281f]/20 via-[#0a110d]/5 to-transparent pointer-events-none blur-3xl z-0" />
+      {/* 🌌 Lueur d'ambiance en arrière-plan */}
+      <div className="absolute top-0 left-64 right-0 h-[600px] bg-gradient-to-tr from-emerald-950/10 via-zinc-900/5 to-transparent pointer-events-none blur-3xl z-0" />
 
-      {/* 🔲 MASTER GRID */}
+      {/* 🔲 MASTER CONTAINER */}
       <div className="flex relative z-10">
         
-        {/* 👈 SIDEBAR ULTRA-PREMIUM (Floutée, fine et moderne) */}
-        <aside className="w-64 bg-[#0d0f12]/70 border-r border-zinc-800/30 h-screen sticky top-0 overflow-y-auto flex flex-col backdrop-blur-xl hidden lg:flex z-50">
+        {/* 👈 SIDEBAR STYLE EMBY (Version épurée, translucide et chic) */}
+        <aside className="w-64 bg-[#0d0f12]/80 border-r border-zinc-900/50 h-screen sticky top-0 flex flex-col backdrop-blur-2xl hidden lg:flex z-50">
           
-          {/* Brand */}
-          <div className="p-6 flex items-center justify-between">
-            <span className="text-lg font-black tracking-widest text-white flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_12px_rgba(34,197,94,0.6)]" /> 
+          {/* Logo */}
+          <div className="p-6 border-b border-zinc-900/40">
+            <span className="text-xl font-black tracking-widest bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16_185_129,0.7)]" /> 
               JELLYWORLD
             </span>
           </div>
 
-          {/* Navigation Principale */}
-          <div className="px-4 py-2 space-y-7 text-[13px]">
-            <div className="space-y-1">
-              <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/40 text-white font-medium border border-zinc-700/20 transition-all shadow-sm">
-                <span className="text-base">🏠</span> Accueil
-              </a>
-              <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/20 transition-all">
-                <span className="text-base">⭐</span> Favoris
-              </a>
-            </div>
+          {/* Navigation haute */}
+          <div className="px-3 py-4 space-y-1 text-xs">
+            <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/10 shadow-sm">
+              <span className="text-sm">🏠</span> Accueil
+            </a>
+            <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/20 transition-all font-medium">
+              <span className="text-sm">⭐</span> Favoris
+            </a>
+          </div>
 
-            {/* Liste des Médias style Emby */}
-            <div className="space-y-2">
-              <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 px-3">
-                Mes Médias
-              </p>
-              <nav className="space-y-0.5 max-h-[65vh] overflow-y-auto pr-1">
-                {activeLibraries.map((lib) => (
-                  <a
-                    key={lib.id}
-                    href={`#lib-${lib.id}`}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/30 border border-transparent hover:border-zinc-800/50 transition-all truncate group"
-                  >
-                    <span className="text-zinc-600 group-hover:text-green-500 transition-colors text-sm">📁</span>
-                    <span className="truncate tracking-wide font-medium">{lib.name}</span>
-                  </a>
-                ))}
-              </nav>
-            </div>
+          {/* Vos Médias (Rendu identique à l'arborescence Emby mais plus propre) */}
+          <div className="px-3 flex-1 overflow-y-auto space-y-2 mt-2 custom-scrollbar text-xs">
+            <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-600 px-3 mb-1">
+              Mes Médias
+            </p>
+            <nav className="space-y-0.5">
+              {activeLibraries.map((lib) => (
+                <a
+                  key={lib.id}
+                  href={`#lib-${lib.id}`}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900/60 border border-transparent hover:border-zinc-800/50 transition-all group truncate"
+                >
+                  <span className="text-zinc-600 group-hover:text-emerald-400 transition-colors text-sm shrink-0">📁</span>
+                  <span className="truncate tracking-wide font-medium">{lib.name}</span>
+                </a>
+              ))}
+            </nav>
           </div>
         </aside>
 
-        {/* 👉 MAIN CONTENT AREA */}
-        <main className="flex-1 min-w-0 bg-gradient-to-b from-transparent to-[#090a0c]">
+        {/* 👉 CONTENU (À droite de la sidebar) */}
+        <main className="flex-1 min-w-0">
           
-          {/* 🔝 TOPBAR COMPACTE & TRANSLUCIDE */}
-          <header className="h-16 border-b border-zinc-900/40 px-8 flex items-center justify-between bg-[#090a0c]/40 backdrop-blur-md sticky top-0 z-40">
-            <div className="relative w-80">
+          {/* 🔝 BARRE SUPÉRIEURE FLOUTÉE */}
+          <header className="h-16 border-b border-zinc-900/30 px-8 flex items-center justify-between bg-[#0a0c0e]/60 backdrop-blur-md sticky top-0 z-40">
+            <div className="relative w-72">
               <input 
                 type="text" 
-                placeholder="Rechercher un film..." 
-                className="w-full bg-zinc-900/50 border border-zinc-800/60 rounded-full py-1.5 pl-9 pr-4 text-xs focus:outline-none focus:border-green-500/30 focus:bg-zinc-900/80 text-zinc-200 placeholder:text-zinc-500 transition-all"
+                placeholder="Recherche rapide..." 
+                className="w-full bg-zinc-900/40 border border-zinc-800/80 rounded-lg py-1.5 pl-9 pr-4 text-xs focus:outline-none focus:border-emerald-500/30 text-zinc-300 placeholder:text-zinc-600 transition-all"
               />
-              <span className="absolute left-3 top-2 text-zinc-500 text-xs">🔍</span>
+              <span className="absolute left-3 top-2 text-zinc-600 text-xs">🔍</span>
             </div>
 
-            <div className="flex items-center gap-5 text-zinc-400">
+            <div className="flex items-center gap-6 text-zinc-400">
               <span className="cursor-pointer hover:text-white text-sm transition-colors">📺</span>
               <span className="cursor-pointer hover:text-white text-sm transition-colors">⚙️</span>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-600 to-emerald-600 p-[1px] shadow-md">
-                <div className="w-full h-full rounded-full bg-[#090a0c] flex items-center justify-center font-bold text-xs text-white">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-700 p-[1px] shadow-sm">
+                <div className="w-full h-full rounded-full bg-[#0a0c0e] flex items-center justify-center font-bold text-xs text-white">
                   M
                 </div>
               </div>
             </div>
           </header>
 
-          {/* 🎬 CARROUSELS */}
-          <div className="p-8 lg:p-12 space-y-14 max-w-[1700px] mx-auto">
+          {/* 🎬 CORPS DE LA PAGE */}
+          <div className="p-8 lg:p-12 space-y-14 max-w-[1700px] mx-auto relative z-10">
             
-            {/* SECTION 1 : VIGNETTES DE DOSSIERS "MES MÉDIAS" (Identique à ton screen Emby) */}
+            {/* 🟦 SECTION "MES MÉDIAS" (Version Premium du haut d'Emby) */}
             <section className="space-y-4">
-              <h2 className="text-xl font-bold text-white tracking-wide">Mes Médias</h2>
+              <h2 className="text-base font-bold text-white tracking-wide uppercase text-zinc-400 text-xs">Mes Médias</h2>
               <div className="flex gap-5 overflow-x-auto pb-4 snap-x scrollbar-none">
                 {activeLibraries.map((lib) => {
                   const sampleMovie = lib.movies[0];
@@ -175,23 +173,20 @@ export default async function Home() {
                     <a 
                       key={lib.id} 
                       href={`#lib-${lib.id}`} 
-                      className="w-64 shrink-0 bg-[#0f1115]/90 border border-zinc-800/40 rounded-xl overflow-hidden hover:border-zinc-600 hover:shadow-[0_8px_30px_rgb(0,0,0,0.5)] transition-all duration-300 group snap-start relative"
+                      className="w-60 shrink-0 bg-gradient-to-b from-zinc-900/40 to-zinc-950/80 border border-zinc-800/40 rounded-xl overflow-hidden hover:border-zinc-700 transition-all duration-300 group snap-start shadow-md hover:shadow-xl"
                     >
-                      {/* Container Image 16/9 flouté style Reflet Emby */}
-                      <div className="aspect-[16/9] w-full bg-zinc-900/80 flex items-center justify-center relative overflow-hidden border-b border-zinc-800/50">
-                        {imageUrl ? (
+                      {/* Vignette au format Paysage (16/9) comme Emby */}
+                      <div className="aspect-[16/9] w-full bg-zinc-950 flex items-center justify-center relative overflow-hidden border-b border-zinc-900/60">
+                        {imageUrl && (
                           <>
-                            <img src={imageUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-30 blur-[2px]" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#0f1115] via-transparent to-transparent opacity-80" />
+                            <img src={imageUrl} alt="" className="w-full h-full object-cover opacity-25 group-hover:opacity-40 blur-[3px] group-hover:scale-105 transition-all duration-500" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
                           </>
-                        ) : null}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                          <span className="text-2xl drop-shadow-md group-hover:scale-110 transition-transform">📂</span>
-                        </div>
+                        )}
+                        <span className="absolute text-xl group-hover:scale-110 transition-transform duration-300 filter drop-shadow-md">📂</span>
                       </div>
-                      <div className="p-4 bg-[#0f1115]">
-                        <h3 className="font-semibold text-xs text-zinc-200 group-hover:text-white truncate tracking-wide">{lib.name}</h3>
-                        <p className="text-[10px] text-zinc-500 mt-0.5 font-medium">{lib.movies.length} titres</p>
+                      <div className="p-3.5">
+                        <h3 className="font-semibold text-xs text-zinc-200 group-hover:text-emerald-400 truncate tracking-wide transition-colors">{lib.name}</h3>
                       </div>
                     </a>
                   );
@@ -199,55 +194,49 @@ export default async function Home() {
               </div>
             </section>
 
-            {/* SECTIONS FILMS PAR BIBLIOTHÈQUES */}
+            {/* 🟥 SECTIONS PAR DOSSIERS / CARROUSELS DE FILMS */}
             {activeLibraries.map((lib) => (
               <section key={lib.id} id={`lib-${lib.id}`} className="space-y-4 scroll-mt-24">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-white tracking-wide hover:text-green-400 cursor-pointer transition-colors flex items-center gap-2 group">
+                  <h2 className="text-base font-bold text-white tracking-wide hover:text-emerald-400 cursor-pointer transition-colors flex items-center gap-1 group">
                     {lib.name} 
-                    <span className="text-zinc-600 group-hover:text-green-400 group-hover:translate-x-1 transition-all font-light text-xl">›</span>
+                    <span className="text-zinc-600 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all text-lg font-light ml-1">›</span>
                   </h2>
                 </div>
 
-                {/* SLIDER HORIZONTAL COMPACT & ÉLÉGANT */}
-                <div className="flex gap-4.5 overflow-x-auto pb-4 snap-x scrollbar-thin">
+                {/* Slider Horizontal (Films Récents) */}
+                <div className="flex gap-4 overflow-x-auto pb-4 snap-x scrollbar-thin">
                   {lib.movies.map((movie: any) => {
                     const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
                     
                     return (
                       <div 
                         key={movie.Id} 
-                        className="w-[170px] shrink-0 bg-[#0f1115] border border-zinc-800/30 rounded-lg overflow-hidden hover:border-green-500/50 transition-all duration-300 shadow-md hover:shadow-[0_12px_24px_rgba(0,0,0,0.6)] cursor-pointer group snap-start relative"
+                        className="w-[160px] shrink-0 bg-[#0d0f12] border border-zinc-900 rounded-lg overflow-hidden hover:border-emerald-500/30 transition-all duration-300 shadow-md group snap-start cursor-pointer"
                       >
-                        {/* Affiche Verticale 2/3 */}
-                        <div className="aspect-[2/3] w-full bg-zinc-900 flex items-center justify-center relative overflow-hidden">
+                        {/* Affiche Verticale épurée sans cadre lourd */}
+                        <div className="aspect-[2/3] w-full bg-zinc-950 relative overflow-hidden">
                           {movie.ImageTags && movie.ImageTags.Primary ? (
                             <img 
                               src={imageUrl} 
                               alt={movie.Name}
                               loading="lazy"
-                              className="w-full h-full object-cover group-hover:scale-[1.02] group-hover:brightness-105 transition-all duration-300"
+                              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 group-hover:brightness-110"
                             />
                           ) : (
-                            <div className="text-center opacity-20">
-                              <span className="text-2xl">🎬</span>
-                            </div>
+                            <div className="w-full h-full flex items-center justify-center opacity-10">🎬</div>
                           )}
-                          {/* Dark overlay subtil au survol */}
-                          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         </div>
 
-                        {/* Infos Titre & Année */}
-                        <div className="p-3 bg-[#0f1115]/95">
-                          <h3 className="font-semibold text-[12px] tracking-wide truncate text-zinc-300 group-hover:text-white transition-colors">
+                        {/* Légendes discrètes en bas */}
+                        <div className="p-3 bg-[#0d0f12]">
+                          <h3 className="font-medium text-[11px] tracking-wide truncate text-zinc-300 group-hover:text-white transition-colors">
                             {movie.Name}
                           </h3>
-                          {movie.ProductionYear ? (
-                            <p className="text-[10px] text-zinc-500 font-semibold mt-0.5">
+                          {movie.ProductionYear && (
+                            <p className="text-[10px] text-zinc-600 font-semibold mt-0.5">
                               {movie.ProductionYear}
                             </p>
-                          ) : (
-                            <p className="text-[10px] text-transparent mt-0.5">0000</p>
                           )}
                         </div>
                       </div>
@@ -260,17 +249,15 @@ export default async function Home() {
         </main>
       </div>
 
-      {/* Rendu des scrollbars masquées / fines en CSS classique pour éviter les conflits */}
+      {/* Moins de code CSS injecté pour maximiser la compatibilité */}
       <style>{`
-        /* Masquer la scrollbar pour Mes Médias */
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Personnalisation fine pour les lignes de films */
-        .scrollbar-thin::-webkit-scrollbar { height: 5px; }
+        .scrollbar-thin::-webkit-scrollbar { height: 4px; }
         .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.03); border-radius: 10px; }
-        .scrollbar-thin:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.02); border-radius: 10px; }
+        .scrollbar-thin:hover::-webkit-scrollbar-thumb { background: rgba(16,185,129,0.2); }
       `}</style>
 
     </div>
