@@ -27,28 +27,33 @@ async function getUserLibraries(userId: string) {
 }
 
 async function getLibraryDetails(libraryId: string, userId: string) {
-  // Ici pas de limite stricte à 10, on récupère TOUS les films de la bibliothèque demandée
-  const url = `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${libraryId}&IncludeItemTypes=Movie,BoxSet&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags`;
+  // On accepte les Movies ET les Series/Episodes/CollectionFolders pour éviter les grilles vides selon la catégorie
+  const url = `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${libraryId}&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=100`;
   try {
     const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `MediaBrowser Token="${JELLYFIN_TOKEN}"`, 'Accept': 'application/json' }, cache: 'no-store' });
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.Items || []).map((item: any) => ({
-      ...item,
-      computedImageUrl: `${JELLYFIN_URL}/Items/${item.Id}/Images/Primary?api_key=${JELLYFIN_TOKEN}`
-    }));
+    return data.Items || [];
   } catch { return []; }
 }
 
-export default async function LibraryPage({ params }: { params: { libraryId: string } }) {
+interface PageProps {
+  params: Promise<{ libraryId: string }> | { libraryId: string };
+}
+
+export default async function LibraryPage(props: PageProps) {
+  // Résolution propre des params pour éviter le crash/404 Next.js
+  const resolvedParams = 'then' in props.params ? await props.params : props.params;
+  const libraryId = resolvedParams.libraryId;
+
   const userId = await getFirstUserId();
   if (!userId) return <div className="text-white p-8">Backend Inaccessible</div>;
 
   const libraries = await getUserLibraries(userId);
-  const currentLibrary = libraries.find((lib: any) => lib.Id === params.libraryId);
-  const movies = await getLibraryDetails(params.libraryId, userId);
+  const currentLibrary = libraries.find((lib: any) => lib.Id === libraryId);
+  const movies = await getLibraryDetails(libraryId, userId);
 
-  // On passe la liste des bibliothèques à la Sidebar pour qu'elle reste toujours visible et à jour
+  // Filtrage pour la Sidebar
   const activeLibraries = libraries.filter((lib: any) => lib.CollectionType !== "boxsets");
 
   return (
@@ -62,22 +67,30 @@ export default async function LibraryPage({ params }: { params: { libraryId: str
           </h1>
         </header>
 
-        {/* GRILLE REPRÉSENTANT TOUS LES FILMS DE CETTE CATÉGORIE ACCESSIBLE EN VERTICAL SCROLL */}
         <div className="p-8 lg:p-10 flex-1">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-6">
-            {movies.map((movie: any) => (
-              <div key={movie.Id} className="group cursor-pointer flex flex-col">
-                <div className="aspect-[2/3] w-full bg-zinc-950 rounded-xl overflow-hidden border border-zinc-900/80 group-hover:border-purple-500/50 transition-all duration-300 shadow-md">
-                  {movie.ImageTags?.Primary ? (
-                    <img src={movie.computedImageUrl} alt={movie.Name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-zinc-700 text-[10px] font-bold">🎬 NO IMAGE</div>
-                  )}
-                </div>
-                <p className="mt-2 text-[10px] font-bold truncate text-zinc-400 group-hover:text-white transition-colors text-left">{movie.Name}</p>
-              </div>
-            ))}
-          </div>
+          {movies.length === 0 ? (
+            <div className="text-center text-zinc-500 text-xs py-20 font-medium">
+              Aucun média trouvé dans cette collection.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-6">
+              {movies.map((movie: any) => {
+                const imageUrl = `${JELLYFIN_URL}/Items/${movie.Id}/Images/Primary?api_key=${JELLYFIN_TOKEN}`;
+                return (
+                  <div key={movie.Id} className="group cursor-pointer flex flex-col">
+                    <div className="aspect-[2/3] w-full bg-zinc-950 rounded-xl overflow-hidden border border-zinc-900/80 group-hover:border-purple-500/50 transition-all duration-300 shadow-md">
+                      {movie.ImageTags?.Primary ? (
+                        <img src={imageUrl} alt={movie.Name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-zinc-700 text-[10px] font-bold">🎬 NO IMAGE</div>
+                      )}
+                    </div>
+                    <p className="mt-2 text-[10px] font-bold truncate text-zinc-400 group-hover:text-white transition-colors text-left">{movie.Name}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
