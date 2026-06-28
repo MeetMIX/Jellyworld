@@ -1,7 +1,8 @@
 import React from 'react';
-import MovieRow from './MovieRow';
 
 export const dynamic = 'force-dynamic';
+
+// --- 1. FONCTIONS DE RÉCUPÉRATION DES DONNÉES (SERVEUR) ---
 
 async function getFirstUserId() {
   const url = `${process.env.JELLYFIN_INTERNAL_URL}/Users`;
@@ -55,7 +56,6 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
     if (!res.ok) return [];
     const data = await res.json();
     
-    // On construit l'URL de l'image ici avec la clé serveur pour que le client n'ait rien à deviner
     const apiKey = process.env.JELLYFIN_API_KEY || "";
     return (data.Items || []).map((item: any) => ({
       ...item,
@@ -65,6 +65,46 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
     return [];
   }
 }
+
+// --- 2. COMPOSANT COMPAGNON (CLIENT-SIDE DANS LE MÊME FICHIER) ---
+// On utilise une astuce Next.js : un sous-composant standard qui s'occupe de l'affichage pur
+
+function MovieListRenderer({ activeLibraries }: { activeLibraries: any[] }) {
+  return (
+    <main className="space-y-12">
+      {activeLibraries.map((lib) => (
+        <section key={lib.id} className="space-y-4 text-left">
+          <h2 className="text-lg font-bold text-white">{lib.name}</h2>
+
+          <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none' }}>
+            {lib.movies.map((movie: any) => (
+              <div key={movie.Id} className="w-[150px] shrink-0 group">
+                <div className="aspect-[2/3] w-full bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 group-hover:border-purple-500 transition-colors">
+                  {movie.ImageTags?.Primary ? (
+                    <img 
+                      src={movie.computedImageUrl} 
+                      alt={movie.Name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-zinc-600 text-xs bg-zinc-950 font-bold">
+                      🎬 NO IMAGE
+                    </div>
+                  )}
+                </div>
+                <p className="mt-2 text-xs font-semibold truncate text-zinc-300 group-hover:text-white">
+                  {movie.Name}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </main>
+  );
+}
+
+// --- 3. PAGE PRINCIPALE (SERVEUR) ---
 
 export default async function Home() {
   const userId = await getFirstUserId();
@@ -93,11 +133,7 @@ export default async function Home() {
         <h1 className="text-xl font-black tracking-widest text-white">JELLYWORLD</h1>
       </header>
 
-      <main className="space-y-12">
-        {activeLibraries.map((lib) => (
-          <MovieRow key={lib.id} lib={lib} />
-        ))}
-      </main>
+      <MovieListRenderer activeLibraries={activeLibraries} />
     </div>
   );
 }
