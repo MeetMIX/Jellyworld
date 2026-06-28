@@ -1,21 +1,30 @@
 import React from 'react';
 
-// 🛠️ Appel API (toujours prêt pour ta future clé)
+// 🎬 Fonction de récupération des films (Exécutée côté serveur par Next.js)
 async function getJellyfinMovies() {
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio`;
-  
+  // On utilise l'URL interne du réseau Docker pour la requête serveur
+  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags`;
+
   try {
-    if (!process.env.JELLYFIN_API_KEY) return [];
+    if (!process.env.JELLYFIN_API_KEY) {
+      console.error("Clé API Jellyfin manquante dans l'environnement backend.");
+      return [];
+    }
+
     const res = await fetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
         'Accept': 'application/json'
       },
-      next: { revalidate: 60 }
+      next: { revalidate: 60 } // Met à jour le cache toutes les minutes
     });
 
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error(`Erreur serveur Jellyfin: ${res.status} ${res.statusText}`);
+      return [];
+    }
+
     const data = await res.json();
     return data.Items || [];
   } catch (error) {
@@ -26,119 +35,124 @@ async function getJellyfinMovies() {
 
 export default async function Home() {
   const movies = await getJellyfinMovies();
-  const ubuntuIp = process.env.NEXT_PUBLIC_UBUNTU_IP;
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white font-sans antialiased">
-      
-      {/* 🌟 BARRE DE NAVIGATION FLOTTANTE */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-zinc-950/80 border-b border-zinc-900 px-8 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-black text-white font-sans antialiased selection:bg-purple-500/30">
+      {/* Header / Navbar */}
+      <header className="sticky top-0 z-50 backdrop-blur-md bg-black/60 border-b border-zinc-900 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-violet-400">
+            <span className="text-2xl font-black tracking-tighter bg-gradient-to-r from-purple-400 via-violet-500 to-indigo-500 bg-clip-text text-transparent">
               JELLYWORLD
             </span>
-            <span className="bg-purple-500/10 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/20">
-              PREMIUM
+            <span className="text-[10px] uppercase tracking-widest bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-full font-bold border border-purple-500/20">
+              Premium
             </span>
           </div>
-          <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
-            <a href="#" className="hover:text-white transition-colors text-white">Accueil</a>
+          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-400">
+            <a href="#" className="text-white hover:text-white transition-colors">Accueil</a>
             <a href="#" className="hover:text-white transition-colors">Films</a>
             <a href="#" className="hover:text-white transition-colors">Séries</a>
           </nav>
         </div>
 
-        {/* Barre de recherche */}
         <div className="flex items-center gap-4">
           <div className="relative hidden sm:block">
-            <span className="absolute inset-y-0 left-3 flex items-center text-zinc-500 text-sm">🔍</span>
             <input 
               type="text" 
               placeholder="Rechercher un film, une série..." 
-              className="bg-zinc-900 border border-zinc-800 text-sm rounded-full pl-9 pr-4 py-1.5 w-64 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+              className="bg-zinc-900/80 border border-zinc-800 rounded-full py-2 pl-10 pr-4 text-xs w-64 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all text-zinc-200 placeholder:text-zinc-500"
             />
+            <span className="absolute left-3.5 top-2.5 text-zinc-500 text-xs">🔍</span>
           </div>
-          <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-purple-600 to-violet-500 flex items-center justify-center text-xs font-bold border border-purple-400/20 shadow-lg cursor-pointer">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs shadow-md border border-purple-400/20">
             M
           </div>
         </div>
       </header>
 
-      {/* 🎬 BANNIÈRE PRINCIPALE (HERO BANNER) */}
-      <section className="relative w-full h-[45vh] sm:h-[55vh] bg-gradient-to-r from-purple-950/40 via-zinc-900 to-zinc-950 border-b border-zinc-900 flex items-center px-8 overflow-hidden">
-        {/* Effet de lueur en arrière-plan */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[140%] bg-purple-600/10 blur-[120px] rounded-full pointer-events-none"></div>
-        
-        <div className="relative z-10 max-w-2xl">
-          <span className="text-purple-400 text-xs font-bold uppercase tracking-widest bg-purple-500/10 px-3 py-1 rounded-md border border-purple-500/20">
+      {/* Hero Section */}
+      <main className="px-6 md:px-12 py-8 max-w-7xl mx-auto space-y-12">
+        <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-zinc-950 via-zinc-900/90 to-transparent border border-zinc-900 p-8 md:p-12 min-h-[380px] flex flex-col justify-center space-y-6 shadow-2xl">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.08),transparent_45%)]" />
+          <span className="text-[10px] uppercase tracking-widest bg-purple-500/10 text-purple-300 w-max px-2.5 py-1 rounded-md font-bold border border-purple-500/20">
             À la une aujourd'hui
           </span>
-          <h1 className="text-4xl sm:text-6xl font-black tracking-tight mt-4 mb-4 bg-gradient-to-r from-white to-zinc-300 bg-clip-text text-transparent">
-            Bienvenue dans Jellyworld
+          <h1 className="text-4xl md:text-6xl font-black tracking-tight max-w-2xl leading-tight">
+            Bienvenue dans <br />
+            <span className="bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">Jellyworld</span>
           </h1>
-          <p className="text-base sm:text-lg text-zinc-400 mb-6 leading-relaxed">
-            Votre lecteur multimédia personnel est prêt. Une fois votre clé d'API Jellyfin configurée ({ubuntuIp || 'IP non configurée'}), tout votre catalogue sera synchronisé ici avec une interface réinventée.
+          <p className="text-sm md:text-base text-zinc-400 max-w-xl leading-relaxed font-light">
+            Votre lecteur multimédia personnel est prêt. Tout votre catalogue est maintenant synchronisé en temps réel avec une interface réinventée, fluide et moderne.
           </p>
-          <div className="flex gap-4">
-            <button className="bg-white text-black font-semibold text-sm px-6 py-2.5 rounded-xl hover:bg-zinc-200 transition-all shadow-lg flex items-center gap-2">
+          <div className="flex items-center gap-3 pt-2">
+            <button className="bg-white text-black font-semibold text-xs px-6 py-3 rounded-xl hover:bg-zinc-200 transition-all shadow-lg flex items-center gap-2">
               <span>▶</span> Lecture rapide
             </button>
-            <button className="bg-zinc-800/80 border border-zinc-700/50 text-white font-semibold text-sm px-6 py-2.5 rounded-xl hover:bg-zinc-700 transition-all backdrop-blur-sm">
+            <button className="bg-zinc-900/80 hover:bg-zinc-800/80 border border-zinc-800 text-zinc-300 font-semibold text-xs px-6 py-3 rounded-xl transition-all">
               Plus d'infos
             </button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* 📦 CONTENU / GRILLE */}
-      <section className="p-8">
-        <h2 className="text-xl font-bold text-zinc-200 mb-6 flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-purple-500 animate-pulse"></span>
-          Ma Bibliothèque Jellyfin ({movies.length})
-        </h2>
-        
-        {movies.length === 0 ? (
-          /* État d'attente stylisé */
-          <div className="border border-dashed border-zinc-800 bg-zinc-900/20 rounded-2xl p-12 text-center max-w-xl mx-auto mt-8">
-            <div className="text-4xl mb-4">🔑</div>
-            <h3 className="text-lg font-semibold text-zinc-300 mb-2">Prêt pour la synchronisation</h3>
-            <p className="text-sm text-zinc-500 leading-relaxed mb-4">
-              Ajoutez votre clé d'API dans le fichier <code className="text-purple-400 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-xs">.env.local</code> pour remplacer cet écran par vos propres films.
-            </p>
+        {/* Movies Grid Section */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between border-b border-zinc-900 pb-4">
+            <div className="flex items-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
+              <h2 className="text-lg font-bold tracking-tight">
+                Ma Bibliothèque Jellyfin <span className="text-purple-400 font-medium ml-1">({movies.length})</span>
+              </h2>
+            </div>
           </div>
-        ) : (
-          /* La grille de vrais films (quand la clé sera là) */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-            {movies.map((movie: any) => {
-              const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
-              return (
-                <div key={movie.Id} className="group relative bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-3 transition-all duration-300 hover:scale-[1.03] hover:bg-zinc-900 hover:border-purple-500/40 cursor-pointer">
-                  <div className="aspect-[2/3] w-full rounded-xl mb-3 overflow-hidden bg-zinc-950 border border-zinc-800 flex items-center justify-center">
-                    {movie.HasImage ? (
-                      <img 
-                        src={`${imageUrl}?maxWidth=400`} 
-                        alt={movie.Name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="text-4xl">🎬</span>
-                    )}
+
+          {movies.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 bg-zinc-950/40 border border-dashed border-zinc-900 rounded-2xl text-center p-6">
+              <span className="text-3xl mb-3">🔑</span>
+              <p className="text-sm font-medium text-zinc-400">Aucun film trouvé.</p>
+              <p className="text-xs text-zinc-600 mt-1 max-w-xs">
+                Vérifiez la connexion réseau avec le conteneur ou assurez-vous d'avoir des médias catégorisés comme "Films".
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+              {movies.map((movie: any) => {
+                // Utilisation de l'IP externe pour que le navigateur du PC puisse télécharger l'affiche
+                const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
+                
+                return (
+                  <div key={movie.Id} className="group relative bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-3 transition-all duration-300 hover:scale-[1.03] hover:bg-zinc-900 hover:border-purple-500/40 cursor-pointer">
+                    <div className="aspect-[2/3] w-full rounded-xl mb-3 overflow-hidden bg-zinc-950 border border-zinc-800 flex items-center justify-center relative shadow-inner">
+                      {movie.ImageTags && movie.ImageTags.Primary ? (
+                        <img 
+                          src={imageUrl} 
+                          alt={movie.Name}
+                          loading="lazy"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-zinc-700 group-hover:text-zinc-500 transition-colors">
+                          <span className="text-2xl">🎬</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1 px-1">
+                      <h3 className="font-semibold text-xs truncate text-zinc-200 group-hover:text-purple-400 transition-colors">
+                        {movie.Name}
+                      </h3>
+                      {movie.ProductionYear && (
+                        <p className="text-[10px] text-zinc-500 font-medium">
+                          {movie.ProductionYear}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <h3 className="font-medium text-sm text-zinc-200 group-hover:text-purple-400 transition-colors truncate" title={movie.Name}>
-                    {movie.Name}
-                  </h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {movie.ProductionYear || '—'}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-    </main>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
   );
 }
