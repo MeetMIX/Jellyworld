@@ -1,34 +1,16 @@
 import React from 'react';
 
-// 📂 1. Récupérer les collections racines (les bibliothèques globales) du serveur
-async function getLibraries() {
-  // On cible les dossiers parents du serveur (CollectionFolder)
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?IncludeItemTypes=CollectionFolder&Recursive=false`;
+// 🎬 Récupérer TOUS les films avec le champ de leur bibliothèque d'origine
+async function getJellyfinMovies() {
+  // On ajoute "Fields=LibraryName" pour savoir dans quel dossier est chaque film
+  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags,LibraryName`;
+
   try {
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `MediaBrowser Token="${process.env.JELLYFIN_API_KEY}"`,
-        'Accept': 'application/json'
-      },
-      next: { revalidate: 60 }
-    });
-    if (!res.ok) {
-      console.error(`Erreur serveurs Jellyfin (CollectionFolder): ${res.status}`);
+    if (!process.env.JELLYFIN_API_KEY) {
+      console.error("Clé API Jellyfin manquante.");
       return [];
     }
-    const data = await res.json();
-    return data.Items || [];
-  } catch (error) {
-    console.error("Erreur de récupération des dossiers racines:", error);
-    return [];
-  }
-}
 
-// 🎬 2. Récupérer les films d'une bibliothèque spécifique via son ParentId
-async function getMoviesByLibrary(parentId: string) {
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?ParentId=${parentId}&IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags`;
-  try {
     const res = await fetch(url, {
       method: 'GET',
       headers: {
@@ -37,32 +19,40 @@ async function getMoviesByLibrary(parentId: string) {
       },
       next: { revalidate: 60 }
     });
-    if (!res.ok) return [];
+
+    if (!res.ok) {
+      console.error(`Erreur Jellyfin: ${res.status}`);
+      return [];
+    }
+
     const data = await res.json();
     return data.Items || [];
   } catch (error) {
-    console.error("Erreur films par bibliothèque:", error);
+    console.error("Erreur récupération films:", error);
     return [];
   }
 }
 
 export default async function Home() {
-  const libraries = await getLibraries();
-  
-  // On construit un tableau d'objets contenant la bibliothèque ET ses films
-  const librariesWithMovies = await Promise.all(
-    libraries.map(async (lib: any) => {
-      const movies = await getMoviesByLibrary(lib.Id);
-      return {
-        id: lib.Id,
-        name: lib.Name,
-        movies: movies
-      };
-    })
-  );
+  const allMovies = await getJellyfinMovies();
 
-  // On filtre pour ne garder QUE les bibliothèques qui contiennent au moins un film
-  const activeLibraries = librariesWithMovies.filter(lib => lib.movies.length > 0);
+  // 📂 Tri et regroupement des films par bibliothèque côté Next.js
+  const map: { [key: string]: any[] } = {};
+  
+  allMovies.forEach((movie: any) => {
+    // Si Jellyfin ne renvoie pas de LibraryName, on le met dans "Films" par défaut
+    const libraryName = movie.LibraryName || "Films";
+    if (!map[libraryName]) {
+      map[libraryName] = [];
+    }
+    map[libraryName].push(movie);
+  });
+
+  // Transformation de l'objet en tableau pour pouvoir le mapper proprement en JSX
+  const librariesWithMovies = Object.keys(map).map((name) => ({
+    name: name,
+    movies: map[name]
+  }));
 
   return (
     <div className="min-h-screen bg-black text-white font-sans antialiased selection:bg-purple-500/30">
@@ -77,42 +67,23 @@ export default async function Home() {
               Premium
             </span>
           </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-400">
-            <a href="#" className="text-white hover:text-white transition-colors">Accueil</a>
-            <a href="#" className="hover:text-white transition-colors">Films</a>
-            <a href="#" className="hover:text-white transition-colors">Séries</a>
-          </nav>
         </div>
-
-        <div className="flex items-center gap-4">
-          <div className="relative hidden sm:block">
-            <input 
-              type="text" 
-              placeholder="Rechercher un film, une série..." 
-              className="bg-zinc-900/80 border border-zinc-800 rounded-full py-2 pl-10 pr-4 text-xs w-64 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30 transition-all text-zinc-200 placeholder:text-zinc-500"
-            />
-            <span className="absolute left-3.5 top-2.5 text-zinc-500 text-xs">🔍</span>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs shadow-md border border-purple-400/20">
-            M
-          </div>
+        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs shadow-md border border-purple-400/20">
+          M
         </div>
       </header>
 
       {/* Main Content */}
       <main className="px-6 md:px-12 py-8 max-w-7xl mx-auto space-y-16">
         
-        {activeLibraries.length === 0 ? (
+        {librariesWithMovies.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 bg-zinc-950/40 border border-dashed border-zinc-900 rounded-2xl text-center p-6">
-            <span className="text-3xl mb-3">📂</span>
-            <p className="text-sm font-medium text-zinc-400">Aucune bibliothèque de films trouvée.</p>
-            <p className="text-xs text-zinc-600 mt-1 max-w-xs">
-              Next.js n'arrive pas à mapper vos dossiers. Vérifiez les logs du conteneur pour inspecter la réponse de Jellyfin.
-            </p>
+            <span className="text-3xl mb-3">🔑</span>
+            <p className="text-sm font-medium text-zinc-400">Aucun film trouvé.</p>
           </div>
         ) : (
-          activeLibraries.map((lib) => (
-            <section key={lib.id} className="space-y-6">
+          librariesWithMovies.map((lib) => (
+            <section key={lib.name} className="space-y-6">
               {/* Titre de la bibliothèque dynamique */}
               <div className="flex items-center gap-3 border-b border-zinc-900 pb-4">
                 <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
