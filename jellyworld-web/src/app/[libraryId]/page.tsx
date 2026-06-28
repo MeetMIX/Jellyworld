@@ -1,5 +1,5 @@
 import React from 'react';
-import Sidebar from '../Sidebar';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ async function getUserLibraries(userId: string) {
 }
 
 async function getLibraryDetails(libraryId: string, userId: string) {
-  const url = `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${libraryId}&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=200`;
+  const url = `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${libraryId}&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=250`;
   try {
     const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `MediaBrowser Token="${JELLYFIN_TOKEN}"`, 'Accept': 'application/json' }, cache: 'no-store' });
     if (!res.ok) return [];
@@ -53,54 +53,73 @@ export default async function LibraryPage({ params }: PageProps) {
   const activeLibraries = libraries.filter((lib: any) => lib.CollectionType !== "boxsets");
 
   return (
-    <div className="h-screen w-screen bg-[#07070a] text-[#f1f5f9] flex overflow-hidden">
-      <Sidebar activeLibraries={activeLibraries} />
+    <div className="min-h-screen w-screen bg-[#060609] text-[#f1f5f9] font-sans overflow-x-hidden relative pt-24">
+      
+      {/* 🧭 NAVIGATION SUPÉRIEURE MUTUALISÉE */}
+      <header className="h-20 px-6 md:px-12 flex items-center justify-between bg-[#060609]/95 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
+        <div className="flex items-center gap-10">
+          <Link href="/" className="flex items-center gap-2">
+            <img src="/logo.png" alt="JellyWorld Logo" className="h-9 w-auto object-contain" />
+          </Link>
 
-      <div className="flex-1 pl-64 h-full overflow-y-auto flex flex-col">
-        <header className="h-16 px-8 flex items-center justify-between bg-[#07070a]/90 backdrop-blur-md border-b border-zinc-900 sticky top-0 z-30 shrink-0">
-          <h1 className="text-xs font-black tracking-widest text-white uppercase">
-            {currentLibrary?.Name || "Collection"} — {items.length} Éléments
-          </h1>
-        </header>
-
-        <div className="p-8 lg:p-10 flex-1">
-          {items.length === 0 ? (
-            <div className="text-center text-zinc-500 text-xs py-20 font-medium">
-              Aucun média trouvé dans cette catégorie.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-6">
-              {items.map((item: any) => {
-                const hasImage = item.ImageTags && item.ImageTags.Primary;
-                const imageUrl = hasImage 
-                  ? `${JELLYFIN_URL}/Items/${item.Id}/Images/Primary?api_key=${JELLYFIN_TOKEN}`
-                  : null;
-
-                return (
-                  <div key={item.Id} className="group cursor-pointer flex flex-col">
-                    <div className="aspect-[2/3] w-full bg-zinc-950 rounded-xl overflow-hidden border border-zinc-900/80 group-hover:border-purple-500/50 transition-all duration-300 shadow-md">
-                      {imageUrl ? (
-                        <img 
-                          src={imageUrl} 
-                          alt={item.Name} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-zinc-700 text-[10px] font-bold uppercase">
-                          🎬 {item.Type || "Média"}
-                        </div>
-                      )}
-                    </div>
-                    <p className="mt-2 text-[10px] font-bold truncate text-zinc-400 group-hover:text-white transition-colors text-left">
-                      {item.Name}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <nav className="hidden xl:flex items-center gap-6 text-[13px] font-medium text-zinc-400">
+            {activeLibraries.map((lib: any) => (
+              <Link key={lib.Id} href={`/${lib.Id}`} className={`hover:text-white transition-colors tracking-wide ${lib.Id === libraryId ? 'text-purple-400 font-bold' : ''}`}>
+                {lib.Name}
+              </Link>
+            ))}
+          </nav>
         </div>
+
+        <div className="flex items-center gap-6 text-zinc-400">
+          <Link href="/" className="text-xs font-bold text-zinc-400 hover:text-white uppercase tracking-wider bg-white/5 px-4 py-2 rounded-xl border border-white/5 transition-all">
+            ← Retour à l'accueil
+          </Link>
+        </div>
+      </header>
+
+      {/* 🏛️ CORPS DE GRILLE MULTI-COLONNES */}
+      <div className="px-6 md:px-12 pb-24 space-y-6">
+        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+          <h2 className="text-base font-black text-white tracking-widest uppercase">
+            {currentLibrary?.Name || "Collection"}
+          </h2>
+          <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
+            {items.length} éléments trouvés
+          </span>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="text-center text-zinc-500 text-xs py-32 font-medium">
+            Aucun média trouvé dans cette catégorie.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-6">
+            {items.map((item: any) => {
+              const hasImage = item.ImageTags && item.ImageTags.Primary;
+              const imageUrl = hasImage 
+                ? `${JELLYFIN_URL}/Items/${item.Id}/Images/Primary?api_key=${JELLYFIN_TOKEN}`
+                : null;
+
+              return (
+                <div key={item.Id} className="group cursor-pointer flex flex-col">
+                  <div className="aspect-[2/3] w-full bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-900 group-hover:border-purple-500/50 transition-all duration-300 shadow-md group-hover:-translate-y-1">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt={item.Name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-700 text-[10px] font-bold uppercase">🎬 {item.Type || "Média"}</div>
+                    )}
+                  </div>
+                  <p className="mt-3 text-[11px] font-bold truncate text-zinc-400 group-hover:text-white transition-colors text-left pl-1">
+                    {item.Name}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
     </div>
   );
 }
