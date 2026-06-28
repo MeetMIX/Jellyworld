@@ -72,14 +72,14 @@ export default async function Home() {
     <div className="min-h-screen w-full bg-[#07060b] text-[#f1f5f9] relative antialiased">
       
       {/* 🧭 NAVIGATION */}
-      <header className="h-24 px-6 md:px-12 flex items-center justify-between bg-black/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
+      <header className="h-14 px-6 md:px-12 flex items-center justify-between bg-black/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
         <div className="flex items-center gap-12">
           <Link href="/" className="block shrink-0">
             {/* Logo agrandi ici : h-16(eloignement du bord) et max-w-[220px](taille du logo) */}
             <img 
               src="/logo.png" 
               alt="JellyWorld" 
-              className="h-14 w-auto max-w-[420px] object-contain block transition-transform duration-300 hover:scale-102" 
+              className="h-400 w-auto max-w-[420px] object-contain block transition-transform duration-300 hover:scale-102" 
             />
           </Link>
 
