@@ -44,7 +44,7 @@ async function getUserLibraries(userId: string) {
 
 // 🎬 3. Récupérer les films d'une bibliothèque spécifique
 async function getMoviesByLibrary(parentId: string) {
-  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?ParentId=${parentId}&IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags`;
+  const url = `${process.env.JELLYFIN_INTERNAL_URL}/Items?ParentId=${parentId}&IncludeItemTypes=Movie&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=20`;
   try {
     const res = await fetch(url, {
       method: 'GET',
@@ -81,99 +81,150 @@ export default async function Home() {
     );
   }
 
-  // On ne garde que les sections qui contiennent des films
   const activeLibraries = librariesWithMovies.filter(lib => lib.movies.length > 0);
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans antialiased selection:bg-purple-500/30 scroll-smooth">
+    <div className="min-h-screen bg-[#101214] text-gray-200 font-sans antialiased relative overflow-x-hidden selection:bg-green-500/30">
       
-      {/* 🔝 HEADER FIXE */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-black/60 border-b border-zinc-900 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl font-black tracking-tighter bg-gradient-to-r from-purple-400 via-violet-500 to-indigo-500 bg-clip-text text-transparent">
-            JELLYWORLD
-          </span>
-          <span className="text-[10px] uppercase tracking-widest bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-full font-bold border border-purple-500/20">
-            Premium
-          </span>
-        </div>
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-bold text-xs shadow-md border border-purple-400/20">
-          M
-        </div>
-      </header>
+      {/* 🌌 BACKGROUND IMMERSIF (Style Emby) */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.03] pointer-events-none"
+        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1600')` }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-[#101214]/95 to-[#101214] pointer-events-none" />
 
-      {/* 🔲 CONTENEUR PRINCIPAL (Sidebar + Contenu) */}
-      <div className="flex min-h-[calc(100-screen-73px)]">
+      {/* 🔲 STRUCTURE PRINCIPALE */}
+      <div className="flex relative z-10">
         
-        {/* 👈 SIDEBAR GAUCHE (Fixe lors du scroll) */}
-        <aside className="w-64 border-r border-zinc-900 bg-zinc-950/50 p-6 hidden md:block sticky top-[73px] h-[calc(100vh-73px)] overflow-y-auto space-y-8">
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold tracking-widest uppercase text-zinc-500 px-2">
-              Bibliothèques
-            </p>
-            <nav className="space-y-1">
-              {activeLibraries.map((lib) => (
-                <a
-                  key={lib.id}
-                  href={`#lib-${lib.id}`}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-zinc-400 hover:text-purple-400 hover:bg-purple-500/5 border border-transparent hover:border-purple-500/10 transition-all group"
-                >
-                  <div className="flex items-center gap-2.5 truncate">
-                    <span className="text-zinc-600 group-hover:text-purple-400 transition-colors">📂</span>
-                    <span className="truncate">{lib.name}</span>
-                  </div>
-                  <span className="text-[11px] font-semibold bg-zinc-900 text-zinc-500 group-hover:bg-purple-500/10 group-hover:text-purple-400 px-2 py-0.5 rounded-md transition-all border border-zinc-800 group-hover:border-purple-500/10">
-                    {lib.movies.length}
-                  </span>
-                </a>
-              ))}
-            </nav>
+        {/* 👈 SIDEBAR STYLE EMBY */}
+        <aside className="w-64 bg-[#141619]/95 border-r border-zinc-800/40 h-screen sticky top-0 overflow-y-auto flex flex-col backdrop-blur-md hidden lg:flex">
+          {/* Logo / Brand */}
+          <div className="p-5 border-b border-zinc-800/40 flex items-center gap-2.5">
+            <span className="text-xl font-black tracking-tighter text-white flex items-center gap-1.5">
+              <span className="text-green-500 text-2xl">❖</span> JELLYWORLD
+            </span>
+          </div>
+
+          {/* Recherche rapide */}
+          <div className="p-4">
+            <input 
+              type="text" 
+              placeholder="Recherche..." 
+              className="w-full bg-[#1c2024] border border-zinc-700/30 rounded-md py-1.5 px-3 text-xs focus:outline-none focus:border-green-500/50 text-zinc-200 placeholder:text-zinc-500"
+            />
+          </div>
+
+          {/* Navigation */}
+          <div className="px-3 py-2 flex-1 space-y-6 text-xs">
+            <div className="space-y-0.5">
+              <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-md bg-green-600/10 text-green-400 font-medium border border-green-500/20">
+                <span>🏠</span> Accueil
+              </a>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold tracking-wider uppercase text-zinc-500 px-3 mb-2">
+                Mes Médias
+              </p>
+              <nav className="space-y-0.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+                {activeLibraries.map((lib) => (
+                  <a
+                    key={lib.id}
+                    href={`#lib-${lib.id}`}
+                    className="flex items-center justify-between px-3 py-2 rounded-md text-zinc-400 hover:text-white hover:bg-[#1c2024] transition-all group"
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <span className="text-zinc-600 group-hover:text-green-500 transition-colors">📁</span>
+                      <span className="truncate tracking-wide">{lib.name}</span>
+                    </div>
+                  </a>
+                ))}
+              </nav>
+            </div>
           </div>
         </aside>
 
-        {/* 👉 GRILLE DE FILMS À DROITE */}
-        <main className="flex-1 px-6 md:px-12 py-8 space-y-16 overflow-x-hidden">
-          {activeLibraries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-zinc-950/40 border border-dashed border-zinc-900 rounded-2xl text-center p-6">
-              <span className="text-3xl mb-3">📂</span>
-              <p className="text-sm font-medium text-zinc-400">Aucune bibliothèque disponible.</p>
+        {/* 👉 ZONE DE CONTENU PRINCIPALE */}
+        <main className="flex-1 min-w-0">
+          
+          {/* 🔝 TOPBAR COMPACTE */}
+          <header className="h-14 border-b border-zinc-800/20 px-8 flex items-center justify-between bg-[#101214]/40 backdrop-blur-sm sticky top-0 z-40">
+            <div className="flex items-center gap-4 text-sm font-medium">
+              <button className="text-white bg-zinc-800/60 px-4 py-1 rounded-full text-xs font-semibold shadow-sm">Accueil</button>
+              <button className="text-zinc-400 hover:text-white text-xs transition-colors">Favoris</button>
             </div>
-          ) : (
-            activeLibraries.map((lib) => (
-              // L'id sert de point d'ancrage pour la Sidebar avec le défilement fluide
-              <section key={lib.id} id={`lib-${lib.id}`} className="space-y-6 scroll-mt-24">
-                
-                {/* Titre de la section */}
-                <div className="flex items-center gap-3 border-b border-zinc-900 pb-4">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
-                  <h2 className="text-xl font-bold tracking-tight">
-                    {lib.name} <span className="text-purple-400 font-medium text-sm ml-1">({lib.movies.length})</span>
+            <div className="flex items-center gap-4 text-zinc-400 text-sm">
+              <span className="cursor-pointer hover:text-white">📺</span>
+              <span className="cursor-pointer hover:text-white">⚙️</span>
+              <div className="w-7 h-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-xs text-white">
+                M
+              </div>
+            </div>
+          </header>
+
+          {/* 🎬 CONTENU DES CARROUSELS HORIZONTAUX */}
+          <div className="p-8 space-y-12 max-w-[1600px] mx-auto">
+            
+            {/* SECTION 1 : VUE EN MOSAÏQUE DES MÉDIAS (HAUT DE PAGE) */}
+            <section className="space-y-4">
+              <h2 className="text-lg font-semibold text-white tracking-wide">Mes Médias</h2>
+              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none snap-x">
+                {activeLibraries.map((lib) => {
+                  const sampleMovie = lib.movies[0];
+                  const imageUrl = sampleMovie ? `http://192.168.220.148:8096/Items/${sampleMovie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}` : null;
+                  
+                  return (
+                    <a key={lib.id} href={`#lib-${lib.id}`} className="w-56 shrink-0 bg-[#141619] border border-zinc-800/40 rounded-md overflow-hidden hover:border-zinc-600 transition-all shadow-md group snap-start">
+                      <div className="aspect-[16/9] w-full bg-zinc-900 flex items-center justify-center relative overflow-hidden border-b border-zinc-800/60">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 blur-[1px] opacity-60" />
+                        ) : null}
+                        <span className="absolute text-2xl z-10">📁</span>
+                      </div>
+                      <div className="p-3">
+                        <h3 className="font-medium text-xs text-zinc-300 group-hover:text-white truncate">{lib.name}</h3>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* SECTIONS DYNAMIQUES DES BIBLIOTHÈQUES */}
+            {activeLibraries.map((lib) => (
+              <section key={lib.id} id={`lib-${lib.id}`} className="space-y-4 scroll-mt-20">
+                <div className="flex items-baseline justify-between">
+                  <h2 className="text-lg font-semibold text-white tracking-wide hover:text-green-400 cursor-pointer transition-colors">
+                    {lib.name} <span className="text-zinc-500 font-normal text-sm ml-1">›</span>
                   </h2>
                 </div>
 
-                {/* Grille */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {/* FIL HORIZONTAL DÉFILANT (Style Emby) */}
+                <div className="flex gap-4 overflow-x-auto pb-4 custom-horizontal-scrollbar snap-x">
                   {lib.movies.map((movie: any) => {
                     const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY}`;
                     
                     return (
-                      <div key={movie.Id} className="group relative bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-3 transition-all duration-300 hover:scale-[1.03] hover:bg-zinc-900 hover:border-purple-500/40 cursor-pointer">
-                        <div className="aspect-[2/3] w-full rounded-xl mb-3 overflow-hidden bg-zinc-950 border border-zinc-800 flex items-center justify-center relative shadow-inner">
+                      <div 
+                        key={movie.Id} 
+                        className="w-44 shrink-0 bg-[#141619] border border-zinc-800/30 rounded-md overflow-hidden hover:border-green-500/40 transition-all duration-200 shadow-lg cursor-pointer group snap-start"
+                      >
+                        {/* Affiche au format 2/3 (Verticale) */}
+                        <div className="aspect-[2/3] w-full bg-[#1c2024] flex items-center justify-center relative border-b border-zinc-800/60">
                           {movie.ImageTags && movie.ImageTags.Primary ? (
                             <img 
                               src={imageUrl} 
                               alt={movie.Name}
                               loading="lazy"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              className="w-full h-full object-cover group-hover:brightness-110 transition-all"
                             />
                           ) : (
-                            <div className="flex flex-col items-center gap-2 text-zinc-700 group-hover:text-zinc-500 transition-colors">
-                              <span className="text-2xl">🎬</span>
-                            </div>
+                            <span className="text-xl opacity-20">🎬</span>
                           )}
                         </div>
-                        <div className="space-y-1 px-1">
-                          <h3 className="font-semibold text-xs truncate text-zinc-200 group-hover:text-purple-400 transition-colors">
+                        {/* Légende du bas */}
+                        <div className="p-2.5 bg-[#141619] space-y-0.5">
+                          <h3 className="font-medium text-[11px] tracking-wide truncate text-zinc-300 group-hover:text-white">
                             {movie.Name}
                           </h3>
                           {movie.ProductionYear && (
@@ -187,11 +238,31 @@ export default async function Home() {
                   })}
                 </div>
               </section>
-            ))
-          )}
+            ))}
+          </div>
         </main>
-
       </div>
+
+      {/* Styles CSS injectés pour masquer/personnaliser les barres de défilement horizontales */}
+      <style jsx global>{`
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+        .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .custom-horizontal-scrollbar::-webkit-scrollbar {
+          height: 6px;
+        }
+        .custom-horizontal-scrollbar::-webkit-scrollbar-track {
+          background: rgba(0,0,0,0.1);
+        }
+        .custom-horizontal-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.05);
+          border-radius: 99px;
+        }
+        .custom-horizontal-scrollbar:hover::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.15);
+        }
+      `}</style>
+
     </div>
   );
 }
