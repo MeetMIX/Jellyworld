@@ -7,6 +7,7 @@ export default function MovieRow({ lib }: { lib: any }) {
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
 
+  // Sécurise l'hydratation côté client pour s'assurer que le JS s'active bien
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -31,7 +32,7 @@ export default function MovieRow({ lib }: { lib: any }) {
   };
 
   if (!isMounted) {
-    return <div className="h-40 bg-zinc-950/20 animate-pulse rounded-lg" />;
+    return <div className="h-44 bg-zinc-950/10 animate-pulse rounded-lg" />;
   }
 
   return (
@@ -41,15 +42,17 @@ export default function MovieRow({ lib }: { lib: any }) {
       </h2>
 
       <div className="relative">
-        {/* Rail de défilement */}
+        {/* Rail de défilement horizontal */}
         <div 
           ref={rowRef}
           className="flex gap-4 overflow-x-auto pb-4 scroll-smooth min-w-full"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {lib.movies.map((movie: any) => {
-            // 🔧 Syntaxe Jellyfin standardisée pour les images
-            const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary`;
+            // 🔧 Utilisation de la clé API publique passée de manière sécurisée ou fallback direct
+            const apiKey = process.env.NEXT_PUBLIC_JELLYFIN_API_KEY || "0111461657f84b4384c8fe7afe4a50de";
+            const imageUrl = `http://192.168.220.148:8096/Items/${movie.Id}/Images/Primary?api_key=${apiKey}`;
+            const isWatched = movie.UserData?.Played === true;
 
             return (
               <div 
@@ -57,7 +60,7 @@ export default function MovieRow({ lib }: { lib: any }) {
                 className="w-[150px] shrink-0 group/card cursor-pointer relative select-none"
                 onClick={() => setSelectedMovie(movie)}
               >
-                {/* Jaquette */}
+                {/* Conteneur de la Jaquette */}
                 <div className="aspect-[2/3] w-full bg-zinc-900 rounded-md overflow-hidden border border-zinc-900 group-hover/card:border-purple-500/50 transition-all duration-200 relative">
                   {movie.ImageTags?.Primary ? (
                     <img 
@@ -66,23 +69,23 @@ export default function MovieRow({ lib }: { lib: any }) {
                       loading="lazy" 
                       className="w-full h-full object-cover pointer-events-none"
                       onError={(e) => {
-                        // 🛡️ Si Jellyfin renvoie un 404, on remplace par un bloc neutre pour éviter le soft-crash
+                        // Empêche le soft-crash de l'interface en cas de 404 sur une image spécifique
                         e.currentTarget.style.display = 'none';
-                        const placeholder = e.currentTarget.nextElementSibling as HTMLDivElement;
-                        if (placeholder) placeholder.style.display = 'flex';
+                        const fallback = e.currentTarget.nextElementSibling as HTMLDivElement;
+                        if (fallback) fallback.style.display = 'flex';
                       }}
                     />
                   ) : null}
 
-                  {/* Placeholder de secours en cas de 404 */}
+                  {/* Placeholder si l'image est manquante ou en erreur */}
                   <div 
-                    className="w-full h-full flex items-center justify-center bg-zinc-950 opacity-30 text-xs" 
+                    className="w-full h-full flex items-center justify-center bg-zinc-950 text-zinc-700 text-xs font-bold"
                     style={{ display: movie.ImageTags?.Primary ? 'none' : 'flex' }}
                   >
-                    🎬
+                    🎬 NO IMAGE
                   </div>
 
-                  {/* Hover Actions */}
+                  {/* Interface de survol (Hover Actions) */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2">
                     <div className="flex justify-start">
                       <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-[10px] text-white hover:bg-purple-600">⋮</div>
@@ -96,14 +99,14 @@ export default function MovieRow({ lib }: { lib: any }) {
                     </div>
                   </div>
 
-                  {movie.UserData?.Played && (
+                  {isWatched && (
                     <div className="absolute top-2 right-2 z-20 w-5 h-5 bg-gradient-to-tr from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-md">
                       ✓
                     </div>
                   )}
                 </div>
 
-                {/* Titre */}
+                {/* Titre et Année */}
                 <div className="mt-2 px-0.5">
                   <h4 className="font-semibold text-xs truncate text-zinc-300 group-hover/card:text-white transition-colors">
                     {movie.Name}
@@ -117,11 +120,12 @@ export default function MovieRow({ lib }: { lib: any }) {
           })}
         </div>
 
-        {/* 🔘 Bouton Blanc de défilement */}
+        {/* 🔘 Bouton de navigation droite (Style épuré blanc à flèche noire) */}
         <button 
           onClick={scrollRight}
           type="button"
           className="absolute right-3 top-[35%] z-40 w-11 h-11 bg-white text-black rounded-full flex items-center justify-center shadow-[0_4px_20px_rgba(0,0,0,0.8)] opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110 active:scale-90 cursor-pointer"
+          aria-label="Défiler à droite"
         >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5 pointer-events-none">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -129,7 +133,7 @@ export default function MovieRow({ lib }: { lib: any }) {
         </button>
       </div>
 
-      {/* POPUP MODALE */}
+      {/* POPUP DE LA FICHE DU FILM (Modale) */}
       {selectedMovie && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
@@ -141,10 +145,10 @@ export default function MovieRow({ lib }: { lib: any }) {
           >
             <div className="w-full md:w-2/5 aspect-[2/3] md:aspect-auto bg-zinc-950 relative shrink-0">
               <img 
-                src={`http://192.168.220.148:8096/Items/${selectedMovie.Id}/Images/Primary`} 
+                src={`http://192.168.220.148:8096/Items/${selectedMovie.Id}/Images/Primary?api_key=${process.env.NEXT_PUBLIC_JELLYFIN_API_KEY || "0111461657f84b4384c8fe7afe4a50de"}`} 
                 alt="" 
                 className="w-full h-full object-cover"
-                onError={(e) => { e.currentTarget.src = ""; }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
               />
             </div>
 
@@ -179,7 +183,7 @@ export default function MovieRow({ lib }: { lib: any }) {
 
               <div className="flex items-center gap-2 pt-2">
                 <button 
-                  onClick={() => alert(`Demande de lecture envoyée pour : ${selectedMovie.Name}`)}
+                  onClick={() => alert(`Lancement de : ${selectedMovie.Name}`)}
                   className="flex-1 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-lg shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   ▶ Lecture
