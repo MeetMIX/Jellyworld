@@ -72,18 +72,19 @@ export default async function Home() {
     <div className="min-h-screen w-full bg-[#07060b] text-[#f1f5f9] relative antialiased">
       
       {/* 🧭 NAVIGATION */}
-      <header className="h-24 px-6 md:px-12 flex items-center justify-between bg-black/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
-        <div className="flex items-center gap-12">
+      <header className="h-28 px-6 md:px-12 flex items-center justify-between bg-black/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-white/5">
+        <div className="flex items-center gap-12 w-full">
           <Link href="/" className="block shrink-0">
-            {/* Logo agrandi ici : h-16(eloignement du bord) et max-w-[220px](taille du logo) */}
+            {/* Correction de la hauteur ici avec une valeur arbitraire propre h-[64px] (soit 4rem / hauteur idéale pour ton logo) */}
             <img 
               src="/logo.png" 
               alt="JellyWorld" 
-              className="h-400 w-auto max-w-[420px] object-contain block transition-transform duration-300 hover:scale-102" 
+              className="h-[64px] w-auto max-w-[320px] object-contain block transition-transform duration-300 hover:scale-102" 
             />
           </Link>
 
-          <nav className="flex items-center gap-6 text-[14px] font-medium text-zinc-300 relative z-50">
+          {/* Navigation alignée horizontalement */}
+          <nav className="flex items-center gap-6 text-[14px] font-medium text-zinc-300 relative z-50 overflow-x-auto whitespace-nowrap scrollbar-none">
             {libraries.map((lib: any) => (
               <Link 
                 key={lib.Id} 
@@ -96,14 +97,14 @@ export default async function Home() {
           </nav>
         </div>
 
-        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0 ml-4">
           A
         </div>
       </header>
 
       {/* 🎬 HERO BANNER */}
       {heroMovie && (
-        <section className="relative h-[80vh] w-full flex items-center px-6 md:px-12 overflow-hidden pt-24">
+        <section className="relative h-[85vh] w-full flex items-center px-6 md:px-12 overflow-hidden pt-28">
           <div className="absolute inset-0 z-0">
             <img 
               src={heroMovie.backdropUrl || heroMovie.computedImageUrl} 
