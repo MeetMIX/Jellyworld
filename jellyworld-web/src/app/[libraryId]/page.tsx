@@ -27,7 +27,6 @@ async function getUserLibraries(userId: string) {
 }
 
 async function getLibraryDetails(libraryId: string, userId: string) {
-  // Version robuste : on autorise une plus large variété de contenus (Movie, Episode, Series, etc.)
   const url = `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${libraryId}&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=200`;
   try {
     const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `MediaBrowser Token="${JELLYFIN_TOKEN}"`, 'Accept': 'application/json' }, cache: 'no-store' });
@@ -42,7 +41,6 @@ interface PageProps {
 }
 
 export default async function LibraryPage({ params }: PageProps) {
-  // Gestion propre du paramètre, peu importe la version de Next
   const libraryId = params?.libraryId;
 
   const userId = await getFirstUserId();
@@ -52,7 +50,6 @@ export default async function LibraryPage({ params }: PageProps) {
   const currentLibrary = libraries.find((lib: any) => lib.Id === libraryId);
   const items = await getLibraryDetails(libraryId, userId);
 
-  // Filtrage identique pour la Sidebar
   const activeLibraries = libraries.filter((lib: any) => lib.CollectionType !== "boxsets");
 
   return (
@@ -74,7 +71,6 @@ export default async function LibraryPage({ params }: PageProps) {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-6">
               {items.map((item: any) => {
-                // Utilisation de l'API standard de fallback si l'image tag saute
                 const hasImage = item.ImageTags && item.ImageTags.Primary;
                 const imageUrl = hasImage 
                   ? `${JELLYFIN_URL}/Items/${item.Id}/Images/Primary?api_key=${JELLYFIN_TOKEN}`
@@ -88,10 +84,6 @@ export default async function LibraryPage({ params }: PageProps) {
                           src={imageUrl} 
                           alt={item.Name} 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={(e) => {
-                            // Au cas où Jellyfin renvoie quand même une 404 sur l'image
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-zinc-700 text-[10px] font-bold uppercase">

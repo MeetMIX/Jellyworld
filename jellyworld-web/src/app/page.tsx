@@ -46,7 +46,6 @@ async function getUserLibraries(userId: string) {
 }
 
 async function getMoviesByLibrary(parentId: string, userId: string) {
-  // On limite à 10 sur l'accueil pour que ça charge instantanément
   const url = `${JELLYFIN_URL}/Users/${userId}/Items?ParentId=${parentId}&IncludeItemTypes=Movie,BoxSet&Recursive=true&Fields=PrimaryImageAspectRatio,ImageTags&Limit=10`;
   try {
     const res = await fetch(url, {
@@ -71,13 +70,20 @@ async function getMoviesByLibrary(parentId: string, userId: string) {
 
 export default async function Home() {
   const userId = await getFirstUserId();
-  if (!userId) return <div className="text-white p-8">Backend Jellyfin Introuvable</div>;
+  if (!userId) {
+    return (
+      <div className="h-screen w-screen bg-[#07070a] text-white flex flex-col items-center justify-center gap-2">
+        <p className="text-sm font-bold text-red-500">Erreur : L'application n'arrive pas à joindre Jellyfin.</p>
+        <p className="text-xs text-zinc-500">Adresse tentée : {JELLYFIN_URL}</p>
+      </div>
+    );
+  }
 
   const libraries = await getUserLibraries(userId);
   const librariesWithMovies = await Promise.all(
     libraries.map(async (lib: any) => {
       const movies = await getMoviesByLibrary(lib.Id, userId);
-      return { id: lib.Id, name: lib.Name, movies: movies };
+      return { Id: lib.Id, Name: lib.Name, movies: movies };
     })
   );
 
@@ -94,12 +100,12 @@ export default async function Home() {
 
         <div className="p-8 lg:p-10 space-y-12 flex-1">
           {activeLibraries.map((lib) => (
-            <section key={lib.id} className="space-y-4 text-left">
+            <section key={lib.Id} className="space-y-4 text-left">
               <div className="flex justify-between items-center">
                 <h2 className="text-xs font-black text-white tracking-wider uppercase bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                  {lib.name}
+                  {lib.Name}
                 </h2>
-                <Link href={`/${lib.id}`} className="text-[10px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider">
+                <Link href={`/${lib.Id}`} className="text-[10px] font-bold text-purple-400 hover:text-purple-300 transition-colors uppercase tracking-wider">
                   Voir tout →
                 </Link>
               </div>

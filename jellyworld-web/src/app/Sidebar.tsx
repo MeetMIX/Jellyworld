@@ -65,11 +65,14 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
         
         <nav className="space-y-1">
           {activeLibraries.map((lib) => {
-            const targetPath = `/${lib.id}`;
+            const libId = lib.Id || lib.id;
+            const libName = lib.Name || lib.name;
+            const targetPath = `/${libId}`;
             const isSelected = pathname === targetPath;
+
             return (
               <Link
-                key={lib.id}
+                key={libId}
                 href={targetPath}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all group text-left ${
                   isSelected 
@@ -80,7 +83,7 @@ export default function Sidebar({ activeLibraries }: { activeLibraries: any[] })
                 <span className={`transition-colors text-xs ${isSelected ? 'text-purple-400' : 'text-zinc-600 group-hover:text-purple-400'}`}>
                   {ICONS.library}
                 </span>
-                <span className="truncate tracking-wide font-medium">{lib.name}</span>
+                <span className="truncate tracking-wide font-medium">{libName}</span>
               </Link>
             );
           })}
