@@ -33,50 +33,71 @@ function enrich(item: any): JellyfinItem {
   return { ...item, posterUrl: getPosterUrl(item.Id), backdropUrl: getBackdropUrl(item.Id) };
 }
 
-// Cache 5 minutes — évite de refaire les appels à chaque navigation
-const CACHE: RequestInit = { next: { revalidate: 300 } };
+// Types de librairies à exclure de la nav
+const EXCLUDED_TYPES = ["boxsets", "playlists", "music"];
 
 async function jellyGet(url: string) {
-  const res = await fetch(url, { method: "GET", headers: authHeaders, ...CACHE });
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: authHeaders,
+      next: { revalidate: 300 }, // cache 5 min
+    });
+    if (!res.ok) {
+      console.error(`[Jellyfin] ${res.status} ${res.statusText} — ${url}`);
+      return null;
+    }
+    return res.json();
+  } catch (e) {
+    console.error(`[Jellyfin] fetch error:`, e);
+    return null;
+  }
 }
 
 export async function getFirstUserId(): Promise<string | null> {
-  try {
-    const users = await jellyGet(`${JELLYFIN_INTERNAL}/Users`);
-    return users?.[0]?.Id ?? null;
-  } catch { return null; }
+  const data = await jellyGet(`${JELLYFIN_INTERNAL}/Users`);
+  return data?.[0]?.Id ?? null;
 }
 
 export async function getUserLibraries(userId: string): Promise<JellyfinLibrary[]> {
-  try {
-    const data = await jellyGet(`${JELLYFIN_INTERNAL}/Users/${userId}/Views`);
-    return (data?.Items ?? []).filter((l: any) => l.CollectionType !== "boxsets");
-  } catch { return []; }
+  const data = await jellyGet(`${JELLYFIN_INTERNAL}/Users/${userId}/Views`);
+  return (data?.Items ?? []).filter(
+    (l: any) => !EXCLUDED_TYPES.includes(l.CollectionType ?? "")
+  );
 }
 
-export async function getItemsByLibrary(parentId: string, userId: string, limit = 16): Promise<JellyfinItem[]> {
-  try {
-    const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
-      + `?ParentId=${parentId}&Recursive=true`
-      + `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,UserData`
-      + `&Limit=${limit}&SortBy=SortName&SortOrder=Ascending`;
-    const data = await jellyGet(url);
-    return (data?.Items ?? []).map(enrich);
-  } catch { return []; }
+export async function getItemsByLibrary(
+  parentId: string,
+  userId: string,
+  limit = 16
+): Promise<JellyfinItem[]> {
+  const url =
+    `${JELLYFIN_INTERNAL}/Users/${userId}/Items` +
+    `?ParentId=${parentId}` +
+    `&Recursive=true` +
+    `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video` +
+    `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,UserData` +
+    `&Limit=${limit}` +
+    `&SortBy=SortName&SortOrder=Ascending`;
+  const data = await jellyGet(url);
+  console.log(`[Jellyfin] getItemsByLibrary parentId=${parentId} → ${data?.Items?.length ?? 0} items`);
+  return (data?.Items ?? []).map(enrich);
 }
 
-// ✅ FIX : utilise maintenant userId — sans lui l'API retourne 0 résultats
-export async function getAllItemsByLibrary(parentId: string, userId: string): Promise<JellyfinItem[]> {
-  try {
-    const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
-      + `?ParentId=${parentId}&Recursive=true`
-      + `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks`
-      + `&SortBy=SortName&SortOrder=Ascending`;
-    const data = await jellyGet(url);
-    return (data?.Items ?? []).map(enrich);
-  } catch { return []; }
+export async function getAllItemsByLibrary(
+  parentId: string,
+  userId: string
+): Promise<JellyfinItem[]> {
+  const url =
+    `${JELLYFIN_INTERNAL}/Users/${userId}/Items` +
+    `?ParentId=${parentId}` +
+    `&Recursive=true` +
+    `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video` +
+    `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks` +
+    `&SortBy=SortName&SortOrder=Ascending`;
+  const data = await jellyGet(url);
+  console.log(`[Jellyfin] getAllItemsByLibrary parentId=${parentId} → ${data?.Items?.length ?? 0} items`);
+  return (data?.Items ?? []).map(enrich);
 }
 
 export async function getHomeData(): Promise<{
@@ -89,7 +110,6 @@ export async function getHomeData(): Promise<{
 
   const libraries = await getUserLibraries(userId);
 
-  // Toutes les bibliothèques en parallèle
   const results = await Promise.all(
     libraries.map((lib) => getItemsByLibrary(lib.Id, userId, 16))
   );
