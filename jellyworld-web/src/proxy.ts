@@ -3,13 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Routes publiques — pas besoin d'auth
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/hls") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/logo") ||
-    pathname.startsWith("/api/hls")
+    pathname === "/favicon.ico" ||
+    pathname === "/logo.png" ||
+    pathname.startsWith("/public")
   ) {
     return NextResponse.next();
   }
@@ -22,5 +24,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|logo.png|public).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|logo\\.png).*)"],
 };
