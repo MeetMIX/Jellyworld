@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Routes publiques — pas besoin d'auth
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/hls") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    pathname === "/logo.png" ||
-    pathname.startsWith("/public")
+    pathname === "/logo.png"
   ) {
     return NextResponse.next();
   }

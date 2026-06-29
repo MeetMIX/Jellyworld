@@ -3,23 +3,17 @@ import { getSession } from "@/lib/auth";
 
 const INTERNAL = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
 
-// Ce proxy reçoit les requêtes HLS du navigateur et les transmet à Jellyfin
-// Le navigateur n'a jamais besoin d'atteindre Jellyfin directement
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return new NextResponse("Non authentifié", { status: 401 });
 
   const { searchParams } = req.nextUrl;
-
-  // Mode 1 : manifest m3u8 principal
+  const proxyUrl  = searchParams.get("url");
   const itemId    = searchParams.get("itemId");
   const versionId = searchParams.get("versionId");
   const audioIdx  = searchParams.get("audioIdx") ?? "-1";
   const subIdx    = searchParams.get("subIdx") ?? "-1";
   const startTicks = searchParams.get("startTicks") ?? "0";
-
-  // Mode 2 : proxy transparent (pour les segments .ts et sous-manifests)
-  const proxyUrl  = searchParams.get("url");
 
   const headers = {
     Authorization: `MediaBrowser Token="${session.token}"`,
@@ -31,32 +25,39 @@ export async function GET(req: NextRequest) {
     let targetUrl: string;
 
     if (proxyUrl) {
-      // Proxy transparent pour les segments et sous-manifests
       const decoded = decodeURIComponent(proxyUrl);
-      // Sécurité : on n'autorise que les URLs Jellyfin internes
-      if (!decoded.includes("jellyfin") && !decoded.includes(":8096")) {
-        return new NextResponse("URL non autorisée", { status: 403 });
+      // Sécurité : URLs Jellyfin uniquement
+      if (!decoded.includes("jellyfin-backend") && !decoded.includes(":8096")) {
+        // Essai avec URL relative → reconstruire avec base interne
+        if (decoded.startsWith("/")) {
+          targetUrl = `${INTERNAL}${decoded}`;
+        } else {
+          return new NextResponse("URL non autorisée", { status: 403 });
+        }
+      } else {
+        targetUrl = decoded;
       }
-      targetUrl = decoded;
     } else if (itemId) {
-      // Construction de l'URL stream Jellyfin
       const p = new URLSearchParams({
         api_key: session.token,
         MediaSourceId: versionId ?? itemId,
         DeviceId: "jellyworld-web",
-        VideoCodec: "h264,hevc,vp9",
+        // Codecs compatibles navigateur — évite un double transcodage inutile
+        VideoCodec: "h264",
         AudioCodec: "aac,mp3,ac3,eac3,opus",
         TranscodingContainer: "ts",
+        // Qualité raisonnable pour éviter les timeouts
+        VideoBitRate: "8000000",
+        MaxVideoBitDepth: "8",
+        TranscodingMaxAudioChannels: "6",
+        EnableMpegtsM2TsMode: "false",
         ...(parseInt(audioIdx) >= 0 ? { AudioStreamIndex: audioIdx } : {}),
         ...(parseInt(subIdx) >= 0 ? {
           SubtitleStreamIndex: subIdx,
           SubtitleMethod: "Encode",
         } : {}),
         ...(parseInt(startTicks) > 0 ? { StartTimeTicks: startTicks } : {}),
-        MaxVideoBitDepth: "10",
-        TranscodingMaxAudioChannels: "6",
-        EnableMpegtsM2TsMode: "false",
-        PlaySessionId: `jw-${Date.now()}`,
+        PlaySessionId: `jw-${session.userId}-${Date.now()}`,
       });
       targetUrl = `${INTERNAL}/Videos/${itemId}/stream.m3u8?${p}`;
     } else {
@@ -65,16 +66,25 @@ export async function GET(req: NextRequest) {
 
     console.log(`[HLS Proxy] GET ${targetUrl.substring(0, 120)}...`);
 
-    const upstream = await fetch(targetUrl, { headers, cache: "no-store" });
+    // Timeout généreux pour le transcodage initial (Jellyfin peut mettre 10-30s)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s max
+
+    const upstream = await fetch(targetUrl, {
+      headers,
+      cache: "no-store",
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
 
     if (!upstream.ok) {
-      console.error(`[HLS Proxy] Jellyfin ${upstream.status}: ${targetUrl.substring(0, 100)}`);
-      return new NextResponse(`Jellyfin error: ${upstream.status}`, { status: upstream.statusCode ?? 502 });
+      const body = await upstream.text().catch(() => "");
+      console.error(`[HLS Proxy] Jellyfin ${upstream.status}: ${body.substring(0, 200)}`);
+      return new NextResponse(`Erreur Jellyfin ${upstream.status}: ${body.substring(0, 100)}`, { status: 502 });
     }
 
     const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
 
-    // Pour les manifests m3u8 : réécrire les URLs internes en URLs proxifiées
+    // Manifests m3u8 → réécrire les URLs
     if (contentType.includes("mpegurl") || targetUrl.includes(".m3u8")) {
       const text = await upstream.text();
       const rewritten = rewriteM3u8(text, req);
@@ -87,7 +97,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Pour les segments .ts : stream binaire direct
+    // Segments .ts → stream binaire
     return new NextResponse(upstream.body, {
       headers: {
         "Content-Type": contentType,
@@ -95,13 +105,17 @@ export async function GET(req: NextRequest) {
         "Access-Control-Allow-Origin": "*",
       },
     });
+
   } catch (e: any) {
+    if (e.name === "AbortError") {
+      console.error("[HLS Proxy] Timeout — Jellyfin met trop de temps à répondre");
+      return new NextResponse("Timeout : Jellyfin prend trop de temps à préparer le stream", { status: 504 });
+    }
     console.error("[HLS Proxy] Erreur:", e.message);
-    return new NextResponse(`Proxy error: ${e.message}`, { status: 500 });
+    return new NextResponse(`Erreur proxy: ${e.message}`, { status: 500 });
   }
 }
 
-// Réécrit les URLs dans un manifest m3u8 pour les faire passer par notre proxy
 function rewriteM3u8(content: string, req: NextRequest): string {
   const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
 
@@ -109,20 +123,18 @@ function rewriteM3u8(content: string, req: NextRequest): string {
     .split("\n")
     .map(line => {
       const trimmed = line.trim();
-      // Ignorer les commentaires et les lignes vides
       if (!trimmed || trimmed.startsWith("#")) return line;
 
-      // URL absolue http(s)://
+      // URL absolue
       if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
         return `${base}/api/hls?url=${encodeURIComponent(trimmed)}`;
       }
 
-      // URL relative — construire l'URL complète Jellyfin
-      if (trimmed.endsWith(".m3u8") || trimmed.endsWith(".ts") || trimmed.includes("?")) {
-        const jellyfinBase = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
+      // URL relative
+      if (trimmed.includes(".m3u8") || trimmed.includes(".ts") || trimmed.includes("?")) {
         const fullUrl = trimmed.startsWith("/")
-          ? `${jellyfinBase}${trimmed}`
-          : `${jellyfinBase}/${trimmed}`;
+          ? `${INTERNAL}${trimmed}`
+          : `${INTERNAL}/${trimmed}`;
         return `${base}/api/hls?url=${encodeURIComponent(fullUrl)}`;
       }
 
