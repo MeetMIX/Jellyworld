@@ -49,7 +49,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <img src="/logo.png" alt="JellyWorld"
-            style={{ height: 264, width: "auto", display: "inline-block", objectFit: "contain" }} />
+            style={{ height: 464, width: "auto", display: "inline-block", objectFit: "contain" }} />
         </div>
 
         {/* Card */}
