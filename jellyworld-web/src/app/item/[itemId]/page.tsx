@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   getItemById, getSimilarItems, getUserLibraries,
-  formatRuntime, ticksToTime
+  formatRuntime, ticksToTime, getBackdropUrl, getPosterUrl
 } from "@/lib/jellyfin";
 import { getSession } from "@/lib/auth";
 import NavBar from "@/components/NavBar/NavBar";
@@ -12,12 +12,15 @@ import InlinePlayer from "@/components/Player/InlinePlayer";
 
 export const dynamic = "force-dynamic";
 
+const INTERNAL = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
+const PUBLIC   = process.env.NEXT_PUBLIC_JELLYFIN_URL || "http://192.168.220.148:8096";
+const TOKEN    = process.env.JELLYFIN_API_KEY || "";
+const TOKEN_PUB = process.env.NEXT_PUBLIC_JELLYFIN_API_KEY || "";
+
 async function getVersions(itemId: string, userId: string, token: string) {
-  const JELLYFIN_INTERNAL = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
   try {
-    const res = await fetch(`${JELLYFIN_INTERNAL}/Items/${itemId}/MediaSources?UserId=${userId}`, {
-      headers: { Authorization: `MediaBrowser Token="${token}"`, Accept: "application/json" },
-      cache: "no-store",
+    const res = await fetch(`${INTERNAL}/Items/${itemId}/MediaSources?UserId=${userId}`, {
+      headers: { Authorization: `MediaBrowser Token="${token}"` }, cache: "no-store",
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -26,10 +29,13 @@ async function getVersions(itemId: string, userId: string, token: string) {
       const tags = (filename.match(/\[([^\]]+)\]/g) ?? [])
         .map((t: string) => t.replace(/\[|\]/g, ""))
         .filter((t: string) => !t.match(/^(IMDBID|tt\d+|tmdb=|tvdb=)/i));
-      const name = tags.length > 0 ? tags.join(" · ") : (src.Name || "Version originale");
-      return { Id: src.Id, Name: name, MediaStreams: src.MediaStreams ?? [], Path: src.Path };
+      return { Id: src.Id, Name: tags.length > 0 ? tags.join(" · ") : (src.Name || "Version originale"), MediaStreams: src.MediaStreams ?? [], Path: src.Path };
     });
   } catch { return []; }
+}
+
+function getLogoUrl(id: string) {
+  return `${PUBLIC}/Items/${id}/Images/Logo?api_key=${TOKEN_PUB}&fillWidth=400&quality=90`;
 }
 
 export default async function ItemPage({ params }: { params: Promise<{ itemId: string }> }) {
@@ -46,7 +52,7 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
 
   if (!item) {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
+      <div style={{ minHeight: "100vh", background: "var(--jw-bg)" }}>
         <NavBar libraries={libraries} session={session} />
         <main style={{ paddingTop: 120, paddingLeft: 48 }}>
           <Link href="/" style={{ color: "var(--jw-purple)", fontSize: 12, fontWeight: 700 }}>← Accueil</Link>
@@ -59,19 +65,20 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
   const runtime = formatRuntime(item.RunTimeTicks);
   const videoStream = item.MediaStreams?.find((s: any) => s.Type === "Video");
   const audioStreams = item.MediaStreams?.filter((s: any) => s.Type === "Audio") ?? [];
-  const subStreams = item.MediaStreams?.filter((s: any) => s.Type === "Subtitle") ?? [];
-  const cast = item.People?.filter((p: any) => p.Type === "Actor").slice(0, 12) ?? [];
-  const directors = item.People?.filter((p: any) => p.Type === "Director") ?? [];
-  const isWatched = (item as any).UserData?.Played ?? false;
+  const subStreams   = item.MediaStreams?.filter((s: any) => s.Type === "Subtitle") ?? [];
+  const cast         = item.People?.filter((p: any) => p.Type === "Actor").slice(0, 12) ?? [];
+  const directors    = item.People?.filter((p: any) => p.Type === "Director") ?? [];
+  const isWatched    = (item as any).UserData?.Played ?? false;
+  const resumeTicks  = (item as any).UserData?.PlaybackPositionTicks ?? 0;
 
   const h = videoStream?.Height;
-  const resLabel = h ? h >= 2160 ? "4K" : h >= 1080 ? "1080p" : h >= 720 ? "720p" : `${h}p` : null;
+  const ql = h ? h >= 2160 ? "4K" : h >= 1080 ? "1080p" : h >= 720 ? "720p" : `${h}p` : null;
 
   const versionsForPlayer = versions.length > 0
     ? versions
     : [{ Id: itemId, Name: "Version originale", MediaStreams: item.MediaStreams ?? [], Path: "" }];
 
-  const S: React.CSSProperties = { fontSize: 16, fontWeight: 800, color: "var(--jw-text-1)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 18px", paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.05)" };
+  const S: React.CSSProperties = { fontSize: 15, fontWeight: 800, color: "var(--jw-text-1)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 18px", paddingBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.05)" };
   const L: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--jw-text-3)", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 4px" };
   const V: React.CSSProperties = { fontSize: 13, color: "var(--jw-text-2)", margin: 0, lineHeight: 1.6 };
 
@@ -80,18 +87,20 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
       <NavBar libraries={libraries} session={session} />
 
       {/* Hero */}
-      <section style={{ position: "relative", height: "65vh", minHeight: 380, overflow: "hidden" }}>
-        <img src={item.backdropUrl} alt={item.Name} style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.28)" }} />
+      <section style={{ position: "relative", height: "68vh", minHeight: 400, overflow: "hidden" }}>
+        <img src={item.backdropUrl} alt={item.Name}
+          style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.28)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, var(--jw-bg) 0%, transparent 55%)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, var(--jw-bg) 0%, transparent 55%)" }} />
       </section>
 
-      {/* Contenu principal */}
-      <div style={{ position: "relative", zIndex: 10, marginTop: "-280px", padding: "0 var(--jw-page-px)", display: "flex", gap: 40, alignItems: "flex-end" }}>
+      {/* Contenu */}
+      <div style={{ position: "relative", zIndex: 10, marginTop: "-300px", padding: "0 var(--jw-page-px)", display: "flex", gap: 40, alignItems: "flex-end" }}>
         {/* Poster */}
         <div style={{ flexShrink: 0, position: "relative" }}>
-          <div style={{ width: 200, borderRadius: "var(--jw-r-lg)", overflow: "hidden", border: "1px solid var(--jw-border)", boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
-            <img src={item.posterUrl} alt={item.Name} style={{ width: "100%", aspectRatio: "2/3", objectFit: "cover", display: "block" }} />
+          <div style={{ width: 210, borderRadius: "var(--jw-r-lg)", overflow: "hidden", border: "1px solid var(--jw-border)", boxShadow: "0 24px 64px rgba(0,0,0,0.8)" }}>
+            <img src={item.posterUrl} alt={item.Name}
+              style={{ width: "100%", aspectRatio: "2/3", objectFit: "cover", display: "block" }} />
           </div>
           {isWatched && (
             <div style={{ position: "absolute", top: 10, right: 10, width: 30, height: 30, borderRadius: "50%", background: "rgba(34,197,94,0.92)", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -101,20 +110,18 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
         </div>
 
         {/* Infos */}
-        <div style={{ flex: 1, paddingBottom: 8, maxWidth: 720 }}>
-          {item.Taglines?.[0] && <p style={{ fontSize: 13, fontStyle: "italic", color: "var(--jw-text-3)", margin: "0 0 8px" }}>{item.Taglines[0]}</p>}
-          <h1 style={{ fontSize: "clamp(28px, 4vw, 50px)", fontWeight: 900, letterSpacing: "-0.02em", lineHeight: 1.05, color: "#fff", margin: "0 0 14px", textTransform: "uppercase" }}>
-            {item.Name}
-          </h1>
+        <div style={{ flex: 1, paddingBottom: 8, maxWidth: 780 }}>
+          {/* Logo officiel ou titre texte */}
+          <LogoOrTitle itemId={itemId} itemName={item.Name} logoUrl={getLogoUrl(itemId)} />
 
-          {/* Badges */}
+          {/* Badges meta */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
             {item.CommunityRating && <span style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b" }}>★ {item.CommunityRating.toFixed(1)}</span>}
             {(item as any).CriticRating && <span style={{ fontSize: 11, fontWeight: 700, background: (item as any).CriticRating >= 60 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)", border: `1px solid ${(item as any).CriticRating >= 60 ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`, color: (item as any).CriticRating >= 60 ? "#4ade80" : "#f87171", borderRadius: 4, padding: "2px 8px" }}>🍅 {(item as any).CriticRating}%</span>}
             {item.ProductionYear && <span style={{ fontSize: 13, color: "var(--jw-text-2)" }}>{item.ProductionYear}</span>}
             {runtime && <span style={{ fontSize: 13, color: "var(--jw-text-2)" }}>{runtime}</span>}
             {(item as any).OfficialRating && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--jw-text-2)", border: "1px solid var(--jw-border-strong)", borderRadius: 4, padding: "2px 8px" }}>{(item as any).OfficialRating}</span>}
-            {resLabel && <span style={{ fontSize: 11, fontWeight: 700, color: "#A06EF0", background: "rgba(107,47,217,0.15)", border: "1px solid rgba(107,47,217,0.3)", borderRadius: 4, padding: "2px 8px" }}>{resLabel} {videoStream?.Codec?.toUpperCase()}</span>}
+            {ql && <span style={{ fontSize: 11, fontWeight: 700, color: "#A06EF0", background: "rgba(107,47,217,0.15)", border: "1px solid rgba(107,47,217,0.3)", borderRadius: 4, padding: "2px 8px" }}>{ql} {videoStream?.Codec?.toUpperCase()}</span>}
             {versions.length > 1 && <span style={{ fontSize: 11, fontWeight: 700, color: "#f59e0b", background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 4, padding: "2px 8px" }}>{versions.length} versions</span>}
           </div>
 
@@ -123,7 +130,7 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
               {item.Genres.map((g: string) => <span key={g} style={{ fontSize: 11, fontWeight: 600, color: "var(--jw-purple)", background: "rgba(107,47,217,0.12)", border: "1px solid rgba(107,47,217,0.25)", borderRadius: 20, padding: "3px 12px" }}>{g}</span>)}
             </div>
           )}
-          {item.Overview && <p style={{ fontSize: 13, color: "var(--jw-text-2)", lineHeight: 1.75, margin: "0 0 14px", maxWidth: 600 }}>{item.Overview}</p>}
+          {item.Overview && <p style={{ fontSize: 13, color: "var(--jw-text-2)", lineHeight: 1.75, margin: "0 0 14px", maxWidth: 640 }}>{item.Overview}</p>}
           {directors.length > 0 && <p style={{ fontSize: 12, color: "var(--jw-text-3)", margin: "0 0 16px" }}><span style={{ color: "var(--jw-text-2)", fontWeight: 600 }}>Réalisateur : </span>{directors.map((d: any) => d.Name).join(", ")}</p>}
 
           <div style={{ display: "flex", gap: 10 }}>
@@ -133,18 +140,12 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          PLAYER INTÉGRÉ — sélecteur + lecture sur la page
-      ══════════════════════════════════════════ */}
-      <div style={{ padding: "48px var(--jw-page-px) 0" }}>
-        <InlinePlayer
-          itemId={itemId}
-          itemName={item.Name}
-          versions={versionsForPlayer}
-        />
+      {/* Player intégré */}
+      <div style={{ padding: "40px var(--jw-page-px) 0" }}>
+        <InlinePlayer itemId={itemId} itemName={item.Name} versions={versionsForPlayer} resumeTicks={resumeTicks} />
       </div>
 
-      {/* Sections détail */}
+      {/* Sections */}
       <div style={{ padding: "40px var(--jw-page-px) 80px", display: "flex", flexDirection: "column", gap: 48 }}>
 
         {cast.length > 0 && (
@@ -211,7 +212,7 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
             <h2 style={S}>Informations du média</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {item.Path && <div><p style={L}>Fichier</p><p style={{ ...V, fontFamily: "monospace", fontSize: 11, wordBreak: "break-all" }}>{item.Path.split("/").pop()}</p></div>}
-              {videoStream && <div><p style={L}>Vidéo</p><p style={V}>{[resLabel, videoStream.Codec?.toUpperCase(), videoStream.BitRate ? `${Math.round(videoStream.BitRate/1000)} kbps` : null].filter(Boolean).join(" · ")}</p></div>}
+              {videoStream && <div><p style={L}>Vidéo</p><p style={V}>{[ql, videoStream.Codec?.toUpperCase(), videoStream.BitRate ? `${Math.round(videoStream.BitRate/1000)} kbps` : null].filter(Boolean).join(" · ")}</p></div>}
               {audioStreams.length > 0 && <div><p style={L}>Audio</p>{audioStreams.map((a: any, i: number) => <p key={i} style={{ ...V, margin: "0 0 2px" }}>{a.DisplayTitle}{a.IsDefault ? " (défaut)" : ""}</p>)}</div>}
               {subStreams.length > 0 && <div><p style={L}>Sous-titres</p><p style={V}>{subStreams.map((s: any) => s.DisplayTitle || s.Language).filter(Boolean).join(", ")}</p></div>}
               {item.DateCreated && <div><p style={L}>Ajouté le</p><p style={V}>{new Date(item.DateCreated).toLocaleDateString("fr-FR")}</p></div>}
@@ -222,3 +223,23 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
     </div>
   );
 }
+
+// Composant client pour logo avec fallback
+function LogoOrTitle({ itemId, itemName, logoUrl }: { itemId: string; itemName: string; logoUrl: string }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <LogoImage logoUrl={logoUrl} itemName={itemName} />
+    </div>
+  );
+}
+
+// On utilise un composant serveur simple avec img + style pour le logo
+// Le fallback est géré par onError côté client via un wrapper
+function LogoImage({ logoUrl, itemName }: { logoUrl: string; itemName: string }) {
+  return (
+    <LogoWithFallback logoUrl={logoUrl} itemName={itemName} />
+  );
+}
+
+// Client component pour le logo
+import LogoWithFallback from "@/components/LogoWithFallback";

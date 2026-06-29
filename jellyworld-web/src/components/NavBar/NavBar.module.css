@@ -14,9 +14,9 @@
 
 .logo { flex-shrink: 0; }
 .logoImg {
-  height: 152px;
+  height: 52px;
   width: auto;
-  max-width: 480px;
+  max-width: 280px;
   object-fit: contain;
   display: block;
   transition: transform 200ms ease;
