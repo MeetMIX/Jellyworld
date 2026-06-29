@@ -32,14 +32,14 @@ function JellyWorldLogo() {
       src="/logo.png"
       alt="JellyWorld"
       // Attribut HTML width/height = hint navigateur avant CSS
-      width={480}
-      height={168}
+      width={1280}
+      height={368}
       style={{
-        height: "168px",
+        height: "268px",
         width: "auto",
-        minHeight: "168px",
-        maxHeight: "268px",
-        maxWidth: "480px",
+        minHeight: "268px",
+        maxHeight: "468px",
+        maxWidth: "880px",
         objectFit: "contain",
         display: "block",
         flexShrink: 0,
