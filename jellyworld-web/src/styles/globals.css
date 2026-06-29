@@ -27,7 +27,7 @@ a { color: inherit; text-decoration: none; }
   display: block !important;
   flex-shrink: 0 !important;
   /* Empêche Tailwind de réduire */
-  min-width: 180px !important;
+  min-width: 80px !important;
 }
 /* Double sélecteur pour battre tout reset CSS */
 img.jw-logo-img,
