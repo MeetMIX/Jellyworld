@@ -5,20 +5,26 @@ import MovieCard from "@/components/MovieCard/MovieCard";
 
 export const dynamic = "force-dynamic";
 
-export default async function LibraryPage({ params }: { params: { libraryId: string } }) {
+// Next.js 15+ : params est une Promise
+export default async function LibraryPage({
+  params,
+}: {
+  params: Promise<{ libraryId: string }>;
+}) {
+  const { libraryId } = await params; // ✅ FIX
+
   const userId = await getFirstUserId();
   const [libraries, items] = await Promise.all([
     userId ? getUserLibraries(userId) : Promise.resolve([]),
-    userId ? getAllItemsByLibrary(params.libraryId, userId) : Promise.resolve([]),
+    userId ? getAllItemsByLibrary(libraryId, userId) : Promise.resolve([]),
   ]);
-  const currentLib = libraries.find((l) => l.Id === params.libraryId);
+  const currentLib = libraries.find((l) => l.Id === libraryId);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
       <NavBar libraries={libraries} />
       <main style={{ paddingTop: "112px", paddingLeft: "48px", paddingRight: "48px", paddingBottom: "80px" }}>
 
-        {/* En-tête */}
         <div style={{ marginBottom: 32 }}>
           <Link href="/" style={{
             fontSize: 11, fontWeight: 700, color: "var(--jw-purple)",
@@ -37,12 +43,11 @@ export default async function LibraryPage({ params }: { params: { libraryId: str
           </div>
         </div>
 
-        {/* Contenu */}
         {items.length === 0 ? (
           <div style={{ paddingTop: 60, textAlign: "center" }}>
             <p style={{ fontSize: 14, color: "var(--jw-text-2)" }}>Aucun média trouvé.</p>
             <p style={{ fontSize: 11, color: "var(--jw-text-3)", marginTop: 8, fontFamily: "monospace" }}>
-              libraryId: {params.libraryId} · userId: {userId ?? "null"}
+              libraryId: {libraryId} · userId: {userId ?? "null"}
             </p>
           </div>
         ) : (
