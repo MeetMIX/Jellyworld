@@ -35,11 +35,11 @@ function JellyWorldLogo() {
       width={480}
       height={168}
       style={{
-        height: "68px",
+        height: "168px",
         width: "auto",
-        minHeight: "68px",
-        maxHeight: "68px",
-        maxWidth: "280px",
+        minHeight: "168px",
+        maxHeight: "268px",
+        maxWidth: "480px",
         objectFit: "contain",
         display: "block",
         flexShrink: 0,
