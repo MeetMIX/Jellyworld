@@ -8,12 +8,40 @@ const authHeaders = {
 };
 
 export interface JellyfinLibrary { Id: string; Name: string; CollectionType?: string; }
+
+export interface JellyfinPerson {
+  Id: string; Name: string; Role?: string; Type: string;
+  photoUrl: string;
+}
+
+export interface JellyfinChapter {
+  StartPositionTicks: number;
+  Name: string;
+  imageUrl: string;
+}
+
+export interface JellyfinMediaStream {
+  Type: string; // "Video" | "Audio" | "Subtitle"
+  Codec?: string;
+  DisplayTitle?: string;
+  Width?: number; Height?: number;
+  BitRate?: number;
+  Language?: string;
+  IsDefault?: boolean;
+}
+
 export interface JellyfinItem {
-  Id: string; Name: string; Overview?: string;
-  ProductionYear?: number; CommunityRating?: number; RunTimeTicks?: number; Type: string;
-  Genres?: string[];
+  Id: string; Name: string; Overview?: string; Taglines?: string[];
+  ProductionYear?: number; CommunityRating?: number; CriticRating?: number;
+  RunTimeTicks?: number; Type: string; OfficialRating?: string;
+  Genres?: string[]; Studios?: { Name: string }[];
+  People?: JellyfinPerson[];
+  Chapters?: JellyfinChapter[];
+  MediaStreams?: JellyfinMediaStream[];
+  ExternalUrls?: { Name: string; Url: string }[];
+  Path?: string; Size?: number; DateCreated?: string;
   ImageTags?: Record<string, string>; BackdropImageTags?: string[];
-  UserData?: { PlayedPercentage?: number; };
+  UserData?: { PlayedPercentage?: number; IsFavorite?: boolean };
   posterUrl: string; backdropUrl: string;
 }
 export interface LibraryWithItems extends JellyfinLibrary { items: JellyfinItem[]; }
@@ -24,33 +52,55 @@ export function getPosterUrl(id: string) {
 export function getBackdropUrl(id: string) {
   return `${JELLYFIN_PUBLIC}/Items/${id}/Images/Backdrop?api_key=${JELLYFIN_TOKEN}&fillWidth=1280&quality=85`;
 }
+export function getPersonPhotoUrl(personId: string) {
+  return `${JELLYFIN_PUBLIC}/Items/${personId}/Images/Primary?api_key=${JELLYFIN_TOKEN}&fillWidth=200&quality=85`;
+}
+export function getChapterImageUrl(itemId: string, index: number) {
+  return `${JELLYFIN_PUBLIC}/Items/${itemId}/Images/Chapter?ImageIndex=${index}&api_key=${JELLYFIN_TOKEN}&fillWidth=320&quality=85`;
+}
 export function formatRuntime(ticks?: number): string {
   if (!ticks) return "";
   const m = Math.floor(ticks / 600000000);
   const h = Math.floor(m / 60);
-  return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
+  return h > 0 ? `${h}h ${m % 60}min` : `${m}min`;
 }
+export function formatFileSize(bytes?: number): string {
+  if (!bytes) return "";
+  const gb = bytes / 1073741824;
+  return gb >= 1 ? `${gb.toFixed(1)} Go` : `${(bytes / 1048576).toFixed(0)} Mo`;
+}
+export function ticksToTime(ticks: number): string {
+  const s = Math.floor(ticks / 10000000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+  return `${m}:${String(sec).padStart(2,"0")}`;
+}
+
 function enrich(item: any): JellyfinItem {
-  return { ...item, posterUrl: getPosterUrl(item.Id), backdropUrl: getBackdropUrl(item.Id) };
+  const enriched = {
+    ...item,
+    posterUrl: getPosterUrl(item.Id),
+    backdropUrl: getBackdropUrl(item.Id),
+  };
+  if (enriched.People) {
+    enriched.People = enriched.People.map((p: any) => ({
+      ...p,
+      photoUrl: getPersonPhotoUrl(p.Id),
+    }));
+  }
+  return enriched;
 }
 
 const EXCLUDED_TYPES = ["boxsets", "playlists"];
 
 async function jellyGet(url: string, revalidate = 300) {
   try {
-    const res = await fetch(url, {
-      method: "GET", headers: authHeaders,
-      next: { revalidate },
-    });
-    if (!res.ok) {
-      console.error(`[Jellyfin] ${res.status} ${res.statusText} — ${url}`);
-      return null;
-    }
+    const res = await fetch(url, { method: "GET", headers: authHeaders, next: { revalidate } });
+    if (!res.ok) { console.error(`[Jellyfin] ${res.status} — ${url}`); return null; }
     return res.json();
-  } catch (e) {
-    console.error(`[Jellyfin] fetch error:`, e);
-    return null;
-  }
+  } catch (e) { console.error(`[Jellyfin] error:`, e); return null; }
 }
 
 export async function getFirstUserId(): Promise<string | null> {
@@ -60,9 +110,7 @@ export async function getFirstUserId(): Promise<string | null> {
 
 export async function getUserLibraries(userId: string): Promise<JellyfinLibrary[]> {
   const data = await jellyGet(`${JELLYFIN_INTERNAL}/Users/${userId}/Views`);
-  return (data?.Items ?? []).filter(
-    (l: any) => !EXCLUDED_TYPES.includes(l.CollectionType ?? "")
-  );
+  return (data?.Items ?? []).filter((l: any) => !EXCLUDED_TYPES.includes(l.CollectionType ?? ""));
 }
 
 export async function getItemsByLibrary(parentId: string, userId: string, limit = 16): Promise<JellyfinItem[]> {
@@ -75,46 +123,49 @@ export async function getItemsByLibrary(parentId: string, userId: string, limit 
   return (data?.Items ?? []).map(enrich);
 }
 
-// Paginated — évite les réponses >2MB qui cassent le cache Next.js
 export async function getAllItemsByLibrary(
-  parentId: string,
-  userId: string,
-  page = 0,
-  pageSize = 100
+  parentId: string, userId: string, page = 0, pageSize = 100
 ): Promise<{ items: JellyfinItem[]; total: number }> {
-  const startIndex = page * pageSize;
   const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
     + `?ParentId=${parentId}&Recursive=true`
     + `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video`
     + `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks`
-    + `&Limit=${pageSize}&StartIndex=${startIndex}`
+    + `&Limit=${pageSize}&StartIndex=${page * pageSize}`
     + `&SortBy=SortName&SortOrder=Ascending`;
   const data = await jellyGet(url);
-  const total = data?.TotalRecordCount ?? 0;
-  const items = (data?.Items ?? []).map(enrich);
-  console.log(`[Jellyfin] getAllItemsByLibrary parentId=${parentId} page=${page} → ${items.length}/${total}`);
-  return { items, total };
+  return { items: (data?.Items ?? []).map(enrich), total: data?.TotalRecordCount ?? 0 };
 }
 
+// Détail complet avec tous les champs
 export async function getItemById(itemId: string, userId: string): Promise<JellyfinItem | null> {
   const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items/${itemId}`
-    + `?Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,Genres,People,MediaStreams`;
+    + `?Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,Genres,People,`
+    + `MediaStreams,Chapters,Studios,ExternalUrls,Path,DateCreated,Taglines,OfficialRating,`
+    + `CriticRating,CommunityRating,ProviderIds`;
   const data = await jellyGet(url, 600);
   if (!data) return null;
+  // Ajouter les URLs des chapitres
+  if (data.Chapters) {
+    data.Chapters = data.Chapters.map((ch: any, i: number) => ({
+      ...ch, imageUrl: getChapterImageUrl(itemId, i),
+    }));
+  }
   return enrich(data);
 }
 
-export async function getHomeData(): Promise<{
-  libraries: JellyfinLibrary[];
-  activeLibraries: LibraryWithItems[];
-  heroItem: JellyfinItem | null;
-}> {
+// Films similaires
+export async function getSimilarItems(itemId: string, userId: string): Promise<JellyfinItem[]> {
+  const url = `${JELLYFIN_INTERNAL}/Items/${itemId}/Similar`
+    + `?UserId=${userId}&Limit=8&Fields=PrimaryImageAspectRatio,ImageTags,Overview`;
+  const data = await jellyGet(url, 3600);
+  return (data?.Items ?? []).map(enrich);
+}
+
+export async function getHomeData() {
   const userId = await getFirstUserId();
   if (!userId) return { libraries: [], activeLibraries: [], heroItem: null };
   const libraries = await getUserLibraries(userId);
-  const results = await Promise.all(
-    libraries.map((lib) => getItemsByLibrary(lib.Id, userId, 16))
-  );
+  const results = await Promise.all(libraries.map((lib) => getItemsByLibrary(lib.Id, userId, 16)));
   const activeLibraries = libraries
     .map((lib, i) => ({ ...lib, items: results[i] }))
     .filter((lib) => lib.items.length > 0);
