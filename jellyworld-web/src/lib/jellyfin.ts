@@ -11,6 +11,7 @@ export interface JellyfinLibrary { Id: string; Name: string; CollectionType?: st
 export interface JellyfinItem {
   Id: string; Name: string; Overview?: string;
   ProductionYear?: number; CommunityRating?: number; RunTimeTicks?: number; Type: string;
+  Genres?: string[];
   ImageTags?: Record<string, string>; BackdropImageTags?: string[];
   UserData?: { PlayedPercentage?: number; };
   posterUrl: string; backdropUrl: string;
@@ -33,15 +34,13 @@ function enrich(item: any): JellyfinItem {
   return { ...item, posterUrl: getPosterUrl(item.Id), backdropUrl: getBackdropUrl(item.Id) };
 }
 
-// Types de librairies à exclure de la nav
-const EXCLUDED_TYPES = ["boxsets", "playlists", "music"];
+const EXCLUDED_TYPES = ["boxsets", "playlists"];
 
-async function jellyGet(url: string) {
+async function jellyGet(url: string, revalidate = 300) {
   try {
     const res = await fetch(url, {
-      method: "GET",
-      headers: authHeaders,
-      next: { revalidate: 300 }, // cache 5 min
+      method: "GET", headers: authHeaders,
+      next: { revalidate },
     });
     if (!res.ok) {
       console.error(`[Jellyfin] ${res.status} ${res.statusText} — ${url}`);
@@ -66,38 +65,43 @@ export async function getUserLibraries(userId: string): Promise<JellyfinLibrary[
   );
 }
 
-export async function getItemsByLibrary(
-  parentId: string,
-  userId: string,
-  limit = 16
-): Promise<JellyfinItem[]> {
-  const url =
-    `${JELLYFIN_INTERNAL}/Users/${userId}/Items` +
-    `?ParentId=${parentId}` +
-    `&Recursive=true` +
-    `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video` +
-    `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,UserData` +
-    `&Limit=${limit}` +
-    `&SortBy=SortName&SortOrder=Ascending`;
+export async function getItemsByLibrary(parentId: string, userId: string, limit = 16): Promise<JellyfinItem[]> {
+  const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
+    + `?ParentId=${parentId}&Recursive=true`
+    + `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video`
+    + `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,UserData`
+    + `&Limit=${limit}&SortBy=SortName&SortOrder=Ascending`;
   const data = await jellyGet(url);
-  console.log(`[Jellyfin] getItemsByLibrary parentId=${parentId} → ${data?.Items?.length ?? 0} items`);
   return (data?.Items ?? []).map(enrich);
 }
 
+// Paginated — évite les réponses >2MB qui cassent le cache Next.js
 export async function getAllItemsByLibrary(
   parentId: string,
-  userId: string
-): Promise<JellyfinItem[]> {
-  const url =
-    `${JELLYFIN_INTERNAL}/Users/${userId}/Items` +
-    `?ParentId=${parentId}` +
-    `&Recursive=true` +
-    `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video` +
-    `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks` +
-    `&SortBy=SortName&SortOrder=Ascending`;
+  userId: string,
+  page = 0,
+  pageSize = 100
+): Promise<{ items: JellyfinItem[]; total: number }> {
+  const startIndex = page * pageSize;
+  const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
+    + `?ParentId=${parentId}&Recursive=true`
+    + `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video`
+    + `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks`
+    + `&Limit=${pageSize}&StartIndex=${startIndex}`
+    + `&SortBy=SortName&SortOrder=Ascending`;
   const data = await jellyGet(url);
-  console.log(`[Jellyfin] getAllItemsByLibrary parentId=${parentId} → ${data?.Items?.length ?? 0} items`);
-  return (data?.Items ?? []).map(enrich);
+  const total = data?.TotalRecordCount ?? 0;
+  const items = (data?.Items ?? []).map(enrich);
+  console.log(`[Jellyfin] getAllItemsByLibrary parentId=${parentId} page=${page} → ${items.length}/${total}`);
+  return { items, total };
+}
+
+export async function getItemById(itemId: string, userId: string): Promise<JellyfinItem | null> {
+  const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items/${itemId}`
+    + `?Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,Genres,People,MediaStreams`;
+  const data = await jellyGet(url, 600);
+  if (!data) return null;
+  return enrich(data);
 }
 
 export async function getHomeData(): Promise<{
@@ -107,16 +111,12 @@ export async function getHomeData(): Promise<{
 }> {
   const userId = await getFirstUserId();
   if (!userId) return { libraries: [], activeLibraries: [], heroItem: null };
-
   const libraries = await getUserLibraries(userId);
-
   const results = await Promise.all(
     libraries.map((lib) => getItemsByLibrary(lib.Id, userId, 16))
   );
-
   const activeLibraries = libraries
     .map((lib, i) => ({ ...lib, items: results[i] }))
     .filter((lib) => lib.items.length > 0);
-
   return { libraries, activeLibraries, heroItem: activeLibraries[0]?.items[0] ?? null };
 }
