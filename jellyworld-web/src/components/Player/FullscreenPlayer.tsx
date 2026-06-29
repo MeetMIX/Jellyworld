@@ -3,157 +3,161 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-interface FullscreenPlayerProps {
+interface Props {
   itemId: string; versionId: string;
   audioIdx: number; subIdx: number; startTicks: number;
   userId: string; token: string;
 }
 
-const JELLYFIN_PUBLIC = process.env.NEXT_PUBLIC_JELLYFIN_URL || "http://192.168.220.148:8096";
-
-function buildUrl(itemId: string, versionId: string, audioIdx: number, subIdx: number, startTicks: number) {
-  if (typeof window === "undefined") return "";
-  const v = document.createElement("video");
-  const canH265 = !!(v.canPlayType('video/mp4; codecs="hvc1.1.6.L93.90"') || v.canPlayType('video/mp4; codecs="hev1.1.6.L93.90"'));
-  const token = document.cookie.match(/jw_token=([^;]+)/)?.[1] ?? "";
-
-  const p = new URLSearchParams({
-    api_key: process.env.NEXT_PUBLIC_JELLYFIN_API_KEY || "",
-    mediaSourceId: versionId,
-    videoCodec: canH265 ? "h265,h264,hevc" : "h264",
-    audioCodec: "aac,mp3,ac3,eac3",
-    ...(audioIdx >= 0 ? { audioStreamIndex: String(audioIdx) } : {}),
-    ...(subIdx >= 0 ? { subtitleStreamIndex: String(subIdx), subtitleMethod: "Encode" } : {}),
-    ...(startTicks > 0 ? { StartTimeTicks: String(startTicks) } : {}),
-    maxVideoBitDepth: "10",
-    transcodingMaxAudioChannels: "6",
-  });
-  return `${JELLYFIN_PUBLIC}/Videos/${itemId}/stream.m3u8?${p}`;
-}
-
-function ticksToSec(ticks: number) { return Math.floor(ticks / 10000000); }
-function secToTicks(sec: number) { return Math.floor(sec * 10000000); }
 function formatTime(sec: number) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
   return h > 0 ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}` : `${m}:${String(s).padStart(2,"0")}`;
 }
+function secToTicks(s: number) { return Math.floor(s * 10000000); }
+function ticksToSec(t: number) { return Math.floor(t / 10000000); }
 
-export default function FullscreenPlayer({ itemId, versionId, audioIdx, subIdx, startTicks, userId, token }: FullscreenPlayerProps) {
+export default function FullscreenPlayer({ itemId, versionId, audioIdx, subIdx, startTicks, token }: Props) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const controlsTimer = useRef<ReturnType<typeof setTimeout>>();
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>();
   const progressTimer = useRef<ReturnType<typeof setInterval>>();
 
   const [showControls, setShowControls] = useState(true);
   const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const [currentTime, setCurrentTime] = useState(ticksToSec(startTicks));
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [itemInfo, setItemInfo] = useState<any>(null);
+  const [streamUrl, setStreamUrl] = useState("");
+  const [itemName, setItemName] = useState("");
 
-  // Récup infos item pour le titre + reprise
+  // Récupère l'URL de stream signée + infos item
   useEffect(() => {
-    fetch(`/api/progress?itemId=${itemId}&action=get`)
-      .then(r => r.json())
-      .then(d => { if (d.item) setItemInfo(d.item); })
-      .catch(() => {});
-  }, [itemId]);
+    async function prepare() {
+      try {
+        // Récup URL stream
+        const params = new URLSearchParams({
+          itemId, versionId,
+          audioIdx: String(audioIdx),
+          subIdx: String(subIdx),
+          startTicks: String(startTicks),
+        });
+        const res = await fetch(`/api/stream?${params}`);
+        const data = await res.json();
+        if (!data.url) { setError("Impossible de générer l'URL de stream"); setLoading(false); return; }
+        setStreamUrl(data.url);
 
-  // Init HLS
+        // Récup nom du film
+        const itemRes = await fetch(`/api/progress?itemId=${itemId}&action=get`);
+        const itemData = await itemRes.json();
+        if (itemData.item?.Name) setItemName(itemData.item.Name);
+      } catch (e) {
+        setError("Erreur de connexion au serveur");
+        setLoading(false);
+      }
+    }
+    prepare();
+  }, [itemId, versionId, audioIdx, subIdx, startTicks]);
+
+  // Init HLS quand on a l'URL
   useEffect(() => {
-    const url = buildUrl(itemId, versionId, audioIdx, subIdx, startTicks);
-    if (!url) return;
+    if (!streamUrl || !videoRef.current) return;
 
-    async function init() {
+    async function initHls() {
       const Hls = (await import("hls.js")).default;
       hlsRef.current?.destroy();
 
       if (Hls.isSupported()) {
         const hls = new Hls({
-          enableWorker: true, lowLatencyMode: false,
-          backBufferLength: 120, maxBufferLength: 60, maxMaxBufferLength: 180,
-          manifestLoadingMaxRetry: 8, levelLoadingMaxRetry: 8, fragLoadingMaxRetry: 8,
+          enableWorker: true,
+          maxBufferLength: 60,
+          maxMaxBufferLength: 120,
+          manifestLoadingMaxRetry: 6,
+          levelLoadingMaxRetry: 6,
+          fragLoadingMaxRetry: 6,
+          fragLoadingMaxRetryTimeout: 8000,
+          xhrSetup: (xhr: XMLHttpRequest) => {
+            xhr.timeout = 30000;
+          },
         });
         hlsRef.current = hls;
 
-        hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-          if (data.fatal) {
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-            else setError(`Erreur : ${data.details}`);
-          }
-        });
-
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setLoading(false);
+          // Seek si reprise
           if (startTicks > 0 && videoRef.current) {
             videoRef.current.currentTime = ticksToSec(startTicks);
           }
-          videoRef.current?.play().then(() => setPlaying(true)).catch(() => setLoading(false));
+          videoRef.current?.play()
+            .then(() => { setPlaying(true); reportStart(); })
+            .catch(() => setLoading(false));
         });
 
-        hls.loadSource(url);
+        hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+          console.error("HLS error:", data.type, data.details, data.fatal);
+          if (data.fatal) {
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              console.log("Tentative récupération erreur média...");
+              hls.recoverMediaError();
+            } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              setError(`Erreur réseau : impossible d'atteindre le serveur Jellyfin.\nVérifiez que NEXT_PUBLIC_JELLYFIN_URL=${process.env.NEXT_PUBLIC_JELLYFIN_URL || "http://192.168.220.148:8096"} est accessible depuis votre navigateur.`);
+              setLoading(false);
+            } else {
+              setError(`Erreur ${data.type} : ${data.details}`);
+              setLoading(false);
+            }
+          }
+        });
+
+        hls.loadSource(streamUrl);
         hls.attachMedia(videoRef.current!);
       } else if (videoRef.current?.canPlayType("application/vnd.apple.mpegurl")) {
-        videoRef.current.src = url;
+        // Safari — HLS natif
+        videoRef.current.src = streamUrl;
         if (startTicks > 0) videoRef.current.currentTime = ticksToSec(startTicks);
-        videoRef.current.play().then(() => setPlaying(true));
+        videoRef.current.play().then(() => { setPlaying(true); setLoading(false); reportStart(); });
+      } else {
+        setError("Votre navigateur ne supporte pas HLS. Utilisez Chrome, Firefox ou Edge.");
         setLoading(false);
       }
     }
-    init();
-    return () => { hlsRef.current?.destroy(); };
-  }, [itemId, versionId, audioIdx, subIdx, startTicks]);
 
-  // Progression — notifie Jellyfin toutes les 10s
+    initHls();
+    return () => { hlsRef.current?.destroy(); };
+  }, [streamUrl]);
+
+  function reportStart() {
+    fetch("/api/progress", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId, action: "start", positionTicks: startTicks }) }).catch(() => {});
+  }
+
+  // Rapport de progression toutes les 10s
   useEffect(() => {
     progressTimer.current = setInterval(() => {
       if (!videoRef.current || videoRef.current.paused) return;
       const ticks = secToTicks(videoRef.current.currentTime);
-      fetch("/api/progress", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, action: "progress", positionTicks: ticks }),
-      }).catch(() => {});
+      fetch("/api/progress", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemId, action: "progress", positionTicks: ticks }) }).catch(() => {});
     }, 10000);
     return () => clearInterval(progressTimer.current);
   }, [itemId]);
 
-  // Sauvegarde position à la fermeture
-  const savePosition = useCallback(() => {
-    if (!videoRef.current) return;
-    const ticks = secToTicks(videoRef.current.currentTime);
-    navigator.sendBeacon("/api/progress", JSON.stringify({ itemId, action: "stop", positionTicks: ticks }));
-  }, [itemId]);
-
-  useEffect(() => {
-    window.addEventListener("beforeunload", savePosition);
-    return () => window.removeEventListener("beforeunload", savePosition);
-  }, [savePosition]);
-
-  // Contrôles auto-hide
-  function showControlsTemp() {
-    setShowControls(true);
-    clearTimeout(controlsTimer.current);
-    controlsTimer.current = setTimeout(() => {
-      if (playing) setShowControls(false);
-    }, 3000);
-  }
-
-  // Events vidéo
-  function onTimeUpdate() { setCurrentTime(videoRef.current?.currentTime ?? 0); }
-  function onDurationChange() { setDuration(videoRef.current?.duration ?? 0); }
-  function onPlay() { setPlaying(true); }
-  function onPause() { setPlaying(false); setShowControls(true); }
-  function onEnded() {
-    savePosition();
-    fetch("/api/progress", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ itemId, action: "stop", positionTicks: secToTicks(duration) }) });
+  const saveAndExit = useCallback(() => {
+    if (videoRef.current) {
+      const ticks = secToTicks(videoRef.current.currentTime);
+      navigator.sendBeacon("/api/progress", JSON.stringify({ itemId, action: "stop", positionTicks: ticks }));
+    }
     router.back();
+  }, [itemId, router]);
+
+  // Auto-hide controls
+  function showCtrl() {
+    setShowControls(true);
+    clearTimeout(hideTimer.current);
+    if (playing) hideTimer.current = setTimeout(() => setShowControls(false), 3500);
   }
 
   function togglePlay() {
@@ -161,87 +165,84 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx, subIdx, 
     videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
   }
 
-  function seek(e: React.ChangeEvent<HTMLInputElement>) {
-    const t = parseFloat(e.target.value);
-    if (videoRef.current) videoRef.current.currentTime = t;
-    setCurrentTime(t);
-  }
-
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen();
-      setFullscreen(true);
+      containerRef.current?.requestFullscreen().then(() => setFullscreen(true));
     } else {
-      document.exitFullscreen();
-      setFullscreen(false);
+      document.exitFullscreen().then(() => setFullscreen(false));
     }
   }
 
-  function skip(seconds: number) {
-    if (videoRef.current) videoRef.current.currentTime += seconds;
-  }
-
-  function handleBack() {
-    savePosition();
-    router.back();
+  function skip(sec: number) {
+    if (videoRef.current) videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + sec));
   }
 
   // Keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.target instanceof HTMLInputElement) return;
-      switch(e.code) {
+      if ((e.target as HTMLElement).tagName === "INPUT") return;
+      switch (e.code) {
         case "Space": e.preventDefault(); togglePlay(); break;
-        case "ArrowLeft": skip(-10); break;
-        case "ArrowRight": skip(30); break;
-        case "ArrowUp": if (videoRef.current) { videoRef.current.volume = Math.min(1, videoRef.current.volume + 0.1); setVolume(videoRef.current.volume); } break;
-        case "ArrowDown": if (videoRef.current) { videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1); setVolume(videoRef.current.volume); } break;
-        case "KeyF": toggleFullscreen(); break;
-        case "Escape": handleBack(); break;
+        case "ArrowLeft": e.preventDefault(); skip(-10); break;
+        case "ArrowRight": e.preventDefault(); skip(30); break;
+        case "ArrowUp": e.preventDefault(); if (videoRef.current) { videoRef.current.volume = Math.min(1, videoRef.current.volume + 0.1); setVolume(videoRef.current.volume); } break;
+        case "ArrowDown": e.preventDefault(); if (videoRef.current) { videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1); setVolume(videoRef.current.volume); } break;
+        case "KeyF": e.preventDefault(); toggleFullscreen(); break;
+        case "Escape": if (!document.fullscreenElement) saveAndExit(); break;
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [playing]);
+  }, [playing, duration]);
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div
       ref={containerRef}
-      onMouseMove={showControlsTemp}
-      onClick={showControlsTemp}
+      onMouseMove={showCtrl}
+      onTouchStart={showCtrl}
       style={{
-        position: "fixed", inset: 0, background: "#000", zIndex: 1000,
+        position: "fixed", inset: 0, background: "#000", zIndex: 9999,
         cursor: showControls ? "default" : "none",
-        userSelect: "none",
       }}
     >
-      {/* Vidéo */}
+      {/* ── VIDEO ── */}
       <video
         ref={videoRef}
-        onTimeUpdate={onTimeUpdate}
-        onDurationChange={onDurationChange}
-        onPlay={onPlay}
-        onPause={onPause}
-        onEnded={onEnded}
         onClick={togglePlay}
-        style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
+        onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
+        onDurationChange={() => setDuration(videoRef.current?.duration ?? 0)}
+        onPlay={() => { setPlaying(true); showCtrl(); }}
+        onPause={() => { setPlaying(false); setShowControls(true); clearTimeout(hideTimer.current); }}
+        onEnded={saveAndExit}
+        onWaiting={() => setLoading(true)}
+        onCanPlay={() => setLoading(false)}
+        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        playsInline
       />
 
-      {/* Spinner chargement */}
-      {loading && (
+      {/* ── SPINNER ── */}
+      {loading && !error && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-          <div style={{ width: 48, height: 48, border: "3px solid rgba(255,255,255,0.2)", borderTop: "3px solid #fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <div style={{ width: 52, height: 52, border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#fff", borderRadius: "50%", animation: "jw-spin 0.7s linear infinite" }} />
+          <style>{`@keyframes jw-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
 
-      {/* Erreur */}
+      {/* ── ERREUR ── */}
       {error && (
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "rgba(0,0,0,0.8)", padding: "20px 28px", borderRadius: 12, color: "#f87171", textAlign: "center", maxWidth: 400 }}>
-          <p style={{ fontWeight: 700, margin: "0 0 8px" }}>Erreur de lecture</p>
-          <p style={{ fontSize: 13, opacity: 0.8, margin: 0 }}>{error}</p>
+        <div style={{
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          background: "rgba(10,8,20,0.95)", border: "1px solid rgba(239,68,68,0.4)",
+          padding: "28px 36px", borderRadius: 16, color: "#f87171",
+          textAlign: "center", maxWidth: 480, lineHeight: 1.6,
+        }}>
+          <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 10px", color: "#fff" }}>⚠ Erreur de lecture</p>
+          <p style={{ fontSize: 13, margin: "0 0 20px", whiteSpace: "pre-wrap" }}>{error}</p>
+          <button onClick={saveAndExit} style={{ padding: "10px 24px", borderRadius: 8, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", cursor: "pointer", fontSize: 13 }}>
+            ← Retour
+          </button>
         </div>
       )}
 
@@ -249,91 +250,88 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx, subIdx, 
       <div style={{
         position: "absolute", inset: 0, display: "flex", flexDirection: "column",
         opacity: showControls ? 1 : 0,
-        transition: "opacity 0.3s ease",
+        transition: "opacity 0.35s ease",
         pointerEvents: showControls ? "auto" : "none",
       }}>
-        {/* Dégradé haut */}
-        <div style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={handleBack} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontSize: 14, padding: "6px 0", opacity: 0.85 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        {/* Top bar */}
+        <div style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)", padding: "20px 28px 40px", display: "flex", alignItems: "center", gap: 16 }}>
+          <button onClick={saveAndExit} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 10, padding: 0, fontSize: 14, opacity: 0.85 }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
           </button>
-          <div style={{ flex: 1 }}>
-            {itemInfo?.Name && <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#fff" }}>{itemInfo.Name}</p>}
-            {itemInfo?.ProductionYear && <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{itemInfo.ProductionYear}</p>}
-          </div>
+          {itemName && (
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)" }}>{itemName}</p>
+            </div>
+          )}
         </div>
 
-        {/* Zone centrale — clic pour play/pause */}
+        {/* Centre — click pour play/pause */}
         <div style={{ flex: 1 }} onClick={togglePlay} />
 
-        {/* Dégradé bas + contrôles */}
-        <div style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)", padding: "0 24px 24px" }}>
-
+        {/* Bottom controls */}
+        <div style={{ background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%)", padding: "40px 28px 24px" }}>
           {/* Barre de progression */}
-          <div style={{ marginBottom: 12, position: "relative", height: 4, cursor: "pointer" }}>
-            <input
-              type="range" min={0} max={duration || 100} value={currentTime} step={0.5}
-              onChange={seek}
-              style={{
-                position: "absolute", inset: 0, width: "100%", height: "100%",
-                opacity: 0, cursor: "pointer", zIndex: 2,
-              }}
+          <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center", marginBottom: 12, cursor: "pointer" }}>
+            {/* Track */}
+            <div style={{ position: "absolute", left: 0, right: 0, height: 4, background: "rgba(255,255,255,0.2)", borderRadius: 2 }} />
+            {/* Fill */}
+            <div style={{ position: "absolute", left: 0, height: 4, width: `${pct}%`, background: "linear-gradient(90deg, #6B2FD9, #E03050)", borderRadius: 2 }} />
+            {/* Thumb */}
+            <div style={{ position: "absolute", left: `${pct}%`, width: 14, height: 14, borderRadius: "50%", background: "#fff", transform: "translateX(-50%)", boxShadow: "0 0 4px rgba(0,0,0,0.5)", zIndex: 1 }} />
+            {/* Input range transparent par-dessus */}
+            <input type="range" min={0} max={duration || 100} value={currentTime} step={0.5}
+              onChange={e => { const t = parseFloat(e.target.value); if(videoRef.current) videoRef.current.currentTime = t; setCurrentTime(t); }}
+              style={{ position: "absolute", inset: 0, width: "100%", opacity: 0, cursor: "pointer", height: 20 }}
             />
-            <div style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.25)", borderRadius: 2 }} />
-            <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${progress}%`, background: "linear-gradient(90deg, #6B2FD9, #E03050)", borderRadius: 2 }} />
-            <div style={{ position: "absolute", top: "50%", left: `${progress}%`, transform: "translate(-50%, -50%)", width: 12, height: 12, borderRadius: "50%", background: "#fff", zIndex: 1 }} />
           </div>
 
           {/* Boutons */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* Play/Pause */}
-            <button onClick={togglePlay} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, display: "flex" }}>
-              {playing ? (
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-              ) : (
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-              )}
+            <button onClick={togglePlay} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, lineHeight: 0 }}>
+              {playing
+                ? <svg width="30" height="30" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                : <svg width="30" height="30" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+              }
             </button>
 
-            {/* Skip -10s */}
-            <button onClick={() => skip(-10)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, display: "flex", alignItems: "center" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.3"/><text x="8" y="15" style={{fill:"white",fontSize:"6px",stroke:"none",fontWeight:"bold"}}>10</text></svg>
+            {/* Skip */}
+            <button onClick={() => skip(-10)} title="-10s" style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, lineHeight: 0, opacity: 0.85 }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.3"/></svg>
             </button>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginLeft: -8, marginRight: 4 }}>10</span>
 
-            {/* Skip +30s */}
-            <button onClick={() => skip(30)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, display: "flex", alignItems: "center" }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-3.3"/><text x="8" y="15" style={{fill:"white",fontSize:"6px",stroke:"none",fontWeight:"bold"}}>30</text></svg>
+            <button onClick={() => skip(30)} title="+30s" style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, lineHeight: 0, opacity: 0.85 }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-3.3"/></svg>
             </button>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginLeft: -8, marginRight: 4 }}>30</span>
 
             {/* Volume */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => { if(videoRef.current) { videoRef.current.muted = !videoRef.current.muted; setMuted(!muted); } }} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0 }}>
-                {muted || volume === 0 ? (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-                ) : (
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                )}
-              </button>
-              <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
-                onChange={e => { const v = parseFloat(e.target.value); if(videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } setVolume(v); setMuted(v === 0); }}
-                style={{ width: 80, accentColor: "#8B3FC8" }}
-              />
-            </div>
+            <button onClick={() => { if(!videoRef.current) return; videoRef.current.muted = !muted; setMuted(!muted); }}
+              style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, lineHeight: 0, opacity: 0.85 }}>
+              {muted || volume === 0
+                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              }
+            </button>
+            <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
+              onChange={e => { const v = parseFloat(e.target.value); if(videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } setVolume(v); setMuted(v === 0); }}
+              style={{ width: 80, accentColor: "#8B3FC8", cursor: "pointer" }}
+            />
 
             {/* Temps */}
-            <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
-              {formatTime(currentTime)} / {formatTime(duration)}
+            <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 13, fontVariantNumeric: "tabular-nums", marginLeft: 4 }}>
+              {formatTime(currentTime)} <span style={{ opacity: 0.45 }}>/</span> {formatTime(duration)}
             </span>
 
             <div style={{ flex: 1 }} />
 
             {/* Plein écran */}
-            <button onClick={toggleFullscreen} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0 }}>
-              {fullscreen ? (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
-              ) : (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-              )}
+            <button onClick={toggleFullscreen} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, lineHeight: 0, opacity: 0.85 }}>
+              {fullscreen
+                ? <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+                : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+              }
             </button>
           </div>
         </div>
