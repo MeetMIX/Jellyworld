@@ -12,11 +12,20 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(
-      `${INTERNAL}/Users/${session.userId}/Items/${itemId}?Fields=UserData,RunTimeTicks,Name,ProductionYear`,
+      `${INTERNAL}/Users/${session.userId}/Items/${itemId}?Fields=UserData,RunTimeTicks,Name,ProductionYear,MediaStreams`,
       { headers: { Authorization: `MediaBrowser Token="${session.token}"` }, cache: "no-store" }
     );
     const item = await res.json();
-    return NextResponse.json({ item: { Name: item.Name, ProductionYear: item.ProductionYear, PlaybackPositionTicks: item.UserData?.PlaybackPositionTicks ?? 0, Played: item.UserData?.Played ?? false } });
+    return NextResponse.json({
+      item: {
+        Name: item.Name,
+        ProductionYear: item.ProductionYear,
+        PlaybackPositionTicks: item.UserData?.PlaybackPositionTicks ?? 0,
+        Played: item.UserData?.Played ?? false,
+        // Streams pour les menus audio/ST dans le player
+        MediaStreams: item.MediaStreams ?? [],
+      }
+    });
   } catch {
     return NextResponse.json({ item: null });
   }
@@ -28,16 +37,21 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const { itemId, action, positionTicks } = body;
-  const headers = { Authorization: `MediaBrowser Token="${session.token}"`, "Content-Type": "application/json" };
+  const headers = {
+    Authorization: `MediaBrowser Token="${session.token}"`,
+    "Content-Type": "application/json",
+  };
 
   try {
     if (action === "start") {
-      await fetch(`${INTERNAL}/Sessions/Playing`, { method: "POST", headers, body: JSON.stringify({ ItemId: itemId, CanSeek: true, IsPaused: false, PositionTicks: positionTicks ?? 0 }) });
+      await fetch(`${INTERNAL}/Sessions/Playing`, { method: "POST", headers,
+        body: JSON.stringify({ ItemId: itemId, CanSeek: true, IsPaused: false, PositionTicks: positionTicks ?? 0 }) });
     } else if (action === "progress") {
-      await fetch(`${INTERNAL}/Sessions/Playing/Progress`, { method: "POST", headers, body: JSON.stringify({ ItemId: itemId, PositionTicks: positionTicks, IsPaused: false }) });
+      await fetch(`${INTERNAL}/Sessions/Playing/Progress`, { method: "POST", headers,
+        body: JSON.stringify({ ItemId: itemId, PositionTicks: positionTicks, IsPaused: false }) });
     } else if (action === "stop") {
-      await fetch(`${INTERNAL}/Sessions/Playing/Stopped`, { method: "POST", headers, body: JSON.stringify({ ItemId: itemId, PositionTicks: positionTicks }) });
-      // Marquer vu si > 90%
+      await fetch(`${INTERNAL}/Sessions/Playing/Stopped`, { method: "POST", headers,
+        body: JSON.stringify({ ItemId: itemId, PositionTicks: positionTicks }) });
     }
     return NextResponse.json({ ok: true });
   } catch {

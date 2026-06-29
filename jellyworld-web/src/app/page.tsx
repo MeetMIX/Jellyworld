@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getHomeData } from "@/lib/jellyfin";
 import { getSession } from "@/lib/auth";
-import NavBar from "@/components/NavBar/NavBar";
 import HeroCarousel from "@/components/Hero/HeroCarousel";
 import RailSection from "@/components/Rail/RailSection";
 import ContinueWatching from "@/components/ContinueWatching";
@@ -23,11 +22,10 @@ async function getContinueWatching(userId: string) {
     const data = await res.json();
     return (data.Items ?? []).map((item: any) => ({
       Id: item.Id, Name: item.Name, Type: item.Type,
-      ProductionYear: item.ProductionYear,
-      RunTimeTicks: item.RunTimeTicks,
+      ProductionYear: item.ProductionYear, RunTimeTicks: item.RunTimeTicks,
       PlaybackPositionTicks: item.UserData?.PlaybackPositionTicks ?? 0,
       PlayedPercentage: item.UserData?.PlayedPercentage ?? 0,
-      posterUrl:   `${PUBLIC}/Items/${item.Id}/Images/Primary?api_key=${API_KEY}&fillWidth=300&quality=90`,
+      posterUrl: `${PUBLIC}/Items/${item.Id}/Images/Primary?api_key=${API_KEY}&fillWidth=300&quality=90`,
       backdropUrl: `${PUBLIC}/Items/${item.Id}/Images/Backdrop?api_key=${API_KEY}&fillWidth=600&quality=80`,
     }));
   } catch { return []; }
@@ -42,29 +40,16 @@ export default async function Home() {
     getContinueWatching(session.userId),
   ]);
 
-  if (!libraries.length) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--jw-text-2)" }}>
-        <p>Backend Jellyfin introuvable.</p>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ minHeight: "100vh", width: "100%", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
-      <NavBar libraries={libraries} session={session} />
+    <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
       {recentItems.length > 0 && <HeroCarousel items={recentItems} rotationSeconds={HERO_ROTATION_SECONDS} />}
       <main style={{
-        padding: "0 48px 80px",
-        marginTop: recentItems.length > 0 ? "-48px" : "calc(var(--jw-nav-height) + 32px)",
+        padding: "0 40px 80px",
+        marginTop: recentItems.length > 0 ? "-48px" : "32px",
         position: "relative", zIndex: 10,
         display: "flex", flexDirection: "column", gap: 40,
       }}>
-        {/* Section "Continuer à regarder" */}
-        {continueWatching.length > 0 && (
-          <ContinueWatching items={continueWatching} />
-        )}
-        {/* Rails par bibliothèque */}
+        {continueWatching.length > 0 && <ContinueWatching items={continueWatching} />}
         {activeLibraries.map(lib => (
           <RailSection key={lib.Id} title={lib.Name} libraryId={lib.Id} items={lib.items} variant="poster" />
         ))}

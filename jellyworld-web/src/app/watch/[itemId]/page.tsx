@@ -17,6 +17,10 @@ export default async function WatchPage({
   const { itemId } = await params;
   const { versionId, audioIdx, subIdx, startTicks } = await searchParams;
 
+  const PUBLIC    = process.env.NEXT_PUBLIC_JELLYFIN_URL || "http://192.168.220.148:8096";
+  const TOKEN_PUB = process.env.NEXT_PUBLIC_JELLYFIN_API_KEY || "";
+  const logoUrl   = `${PUBLIC}/Items/${itemId}/Images/Logo?api_key=${TOKEN_PUB}&fillWidth=500&quality=90`;
+
   return (
     <FullscreenPlayer
       itemId={itemId}
@@ -26,6 +30,7 @@ export default async function WatchPage({
       startTicks={startTicks ? parseInt(startTicks) : 0}
       userId={session.userId}
       token={session.token}
+      logoUrl={logoUrl}
     />
   );
 }
