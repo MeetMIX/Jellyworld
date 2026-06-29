@@ -1,0 +1,4 @@
+# Ajouter dans votre jellyworld-web/ :
+npm install hls.js
+# ou dans le docker-compose, le npm install le fera automatiquement
+# car on l'ajoute dans package.json
