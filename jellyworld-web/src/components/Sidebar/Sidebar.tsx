@@ -34,9 +34,9 @@ export default function Sidebar({ libraries, session }: SidebarProps) {
   useEffect(() => {
     if (!logoRef.current) return;
     const el = logoRef.current;
-    el.style.setProperty("height", "56px", "important");
+    el.style.setProperty("height", "256px", "important");
     el.style.setProperty("width", "auto", "important");
-    el.style.setProperty("max-width", "180px", "important");
+    el.style.setProperty("max-width", "480px", "important");
     el.style.setProperty("object-fit", "contain", "important");
     el.style.setProperty("display", "block", "important");
   }, []);
