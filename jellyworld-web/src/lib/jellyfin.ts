@@ -8,28 +8,13 @@ const authHeaders = {
 };
 
 export interface JellyfinLibrary { Id: string; Name: string; CollectionType?: string; }
-
-export interface JellyfinPerson {
-  Id: string; Name: string; Role?: string; Type: string;
-  photoUrl: string;
-}
-
-export interface JellyfinChapter {
-  StartPositionTicks: number;
-  Name: string;
-  imageUrl: string;
-}
-
+export interface JellyfinPerson { Id: string; Name: string; Role?: string; Type: string; photoUrl: string; }
+export interface JellyfinChapter { StartPositionTicks: number; Name: string; imageUrl: string; }
 export interface JellyfinMediaStream {
-  Type: string; // "Video" | "Audio" | "Subtitle"
-  Codec?: string;
-  DisplayTitle?: string;
-  Width?: number; Height?: number;
-  BitRate?: number;
-  Language?: string;
-  IsDefault?: boolean;
+  Type: string; Codec?: string; DisplayTitle?: string;
+  Width?: number; Height?: number; BitRate?: number;
+  Language?: string; IsDefault?: boolean;
 }
-
 export interface JellyfinItem {
   Id: string; Name: string; Overview?: string; Taglines?: string[];
   ProductionYear?: number; CommunityRating?: number; CriticRating?: number;
@@ -39,7 +24,8 @@ export interface JellyfinItem {
   Chapters?: JellyfinChapter[];
   MediaStreams?: JellyfinMediaStream[];
   ExternalUrls?: { Name: string; Url: string }[];
-  Path?: string; Size?: number; DateCreated?: string;
+  Path?: string; DateCreated?: string;
+  PremiereDate?: string;
   ImageTags?: Record<string, string>; BackdropImageTags?: string[];
   UserData?: { PlayedPercentage?: number; IsFavorite?: boolean };
   posterUrl: string; backdropUrl: string;
@@ -85,10 +71,7 @@ function enrich(item: any): JellyfinItem {
     backdropUrl: getBackdropUrl(item.Id),
   };
   if (enriched.People) {
-    enriched.People = enriched.People.map((p: any) => ({
-      ...p,
-      photoUrl: getPersonPhotoUrl(p.Id),
-    }));
+    enriched.People = enriched.People.map((p: any) => ({ ...p, photoUrl: getPersonPhotoUrl(p.Id) }));
   }
   return enriched;
 }
@@ -111,6 +94,21 @@ export async function getFirstUserId(): Promise<string | null> {
 export async function getUserLibraries(userId: string): Promise<JellyfinLibrary[]> {
   const data = await jellyGet(`${JELLYFIN_INTERNAL}/Users/${userId}/Views`);
   return (data?.Items ?? []).filter((l: any) => !EXCLUDED_TYPES.includes(l.CollectionType ?? ""));
+}
+
+// Films récents triés par date de sortie (PremiereDate)
+export async function getRecentItems(userId: string, limit = 10): Promise<JellyfinItem[]> {
+  const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
+    + `?Recursive=true`
+    + `&IncludeItemTypes=Movie`
+    + `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,Genres,PremiereDate`
+    + `&SortBy=PremiereDate&SortOrder=Descending`
+    + `&Limit=${limit}`
+    + `&HasTmdbId=true`; // seulement les films avec métadonnées
+  const data = await jellyGet(url, 3600);
+  return (data?.Items ?? [])
+    .filter((item: any) => item.BackdropImageTags?.length > 0) // seulement ceux avec backdrop
+    .map(enrich);
 }
 
 export async function getItemsByLibrary(parentId: string, userId: string, limit = 16): Promise<JellyfinItem[]> {
@@ -136,15 +134,13 @@ export async function getAllItemsByLibrary(
   return { items: (data?.Items ?? []).map(enrich), total: data?.TotalRecordCount ?? 0 };
 }
 
-// Détail complet avec tous les champs
 export async function getItemById(itemId: string, userId: string): Promise<JellyfinItem | null> {
   const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items/${itemId}`
     + `?Fields=PrimaryImageAspectRatio,ImageTags,Overview,RunTimeTicks,Genres,People,`
     + `MediaStreams,Chapters,Studios,ExternalUrls,Path,DateCreated,Taglines,OfficialRating,`
-    + `CriticRating,CommunityRating,ProviderIds`;
+    + `CriticRating,CommunityRating,ProviderIds,PremiereDate`;
   const data = await jellyGet(url, 600);
   if (!data) return null;
-  // Ajouter les URLs des chapitres
   if (data.Chapters) {
     data.Chapters = data.Chapters.map((ch: any, i: number) => ({
       ...ch, imageUrl: getChapterImageUrl(itemId, i),
@@ -153,7 +149,6 @@ export async function getItemById(itemId: string, userId: string): Promise<Jelly
   return enrich(data);
 }
 
-// Films similaires
 export async function getSimilarItems(itemId: string, userId: string): Promise<JellyfinItem[]> {
   const url = `${JELLYFIN_INTERNAL}/Items/${itemId}/Similar`
     + `?UserId=${userId}&Limit=8&Fields=PrimaryImageAspectRatio,ImageTags,Overview`;
@@ -163,11 +158,14 @@ export async function getSimilarItems(itemId: string, userId: string): Promise<J
 
 export async function getHomeData() {
   const userId = await getFirstUserId();
-  if (!userId) return { libraries: [], activeLibraries: [], heroItem: null };
+  if (!userId) return { libraries: [], activeLibraries: [], recentItems: [] };
   const libraries = await getUserLibraries(userId);
-  const results = await Promise.all(libraries.map((lib) => getItemsByLibrary(lib.Id, userId, 16)));
+  const [results, recentItems] = await Promise.all([
+    Promise.all(libraries.map((lib) => getItemsByLibrary(lib.Id, userId, 16))),
+    getRecentItems(userId, 10),
+  ]);
   const activeLibraries = libraries
     .map((lib, i) => ({ ...lib, items: results[i] }))
     .filter((lib) => lib.items.length > 0);
-  return { libraries, activeLibraries, heroItem: activeLibraries[0]?.items[0] ?? null };
+  return { libraries, activeLibraries, recentItems };
 }

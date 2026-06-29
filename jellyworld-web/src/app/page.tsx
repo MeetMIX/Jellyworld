@@ -1,20 +1,20 @@
 import { getHomeData } from "@/lib/jellyfin";
 import NavBar from "@/components/NavBar/NavBar";
-import HeroSection from "@/components/Hero/HeroSection";
+import HeroCarousel from "@/components/Hero/HeroCarousel";
 import RailSection from "@/components/Rail/RailSection";
 
 export const dynamic = "force-dynamic";
 
+// Paramètre de rotation en secondes — modifiable ici
+const HERO_ROTATION_SECONDS = 15;
+
 export default async function Home() {
-  const { libraries, activeLibraries, heroItem } = await getHomeData();
+  const { libraries, activeLibraries, recentItems } = await getHomeData();
 
   if (!libraries.length) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, color: "var(--jw-text-2)" }}>
-        <p style={{ fontSize: 14, margin: 0 }}>Backend Jellyfin introuvable</p>
-        <p style={{ fontSize: 12, color: "var(--jw-text-3)", margin: 0 }}>
-          Vérifiez que le container <code>jellyfin-backend</code> est démarré
-        </p>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--jw-text-2)" }}>
+        <p>Backend Jellyfin introuvable — vérifiez que le container est démarré.</p>
       </div>
     );
   }
@@ -22,10 +22,16 @@ export default async function Home() {
   return (
     <div style={{ minHeight: "100vh", width: "100%", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
       <NavBar libraries={libraries} />
-      {heroItem && <HeroSection item={heroItem} />}
+
+      {/* Hero carousel — films récents */}
+      {recentItems.length > 0 && (
+        <HeroCarousel items={recentItems} rotationSeconds={HERO_ROTATION_SECONDS} />
+      )}
+
+      {/* Rails */}
       <main style={{
-        padding: `${heroItem ? "0" : "calc(var(--jw-nav-height) + 32px)"} var(--jw-page-px) 80px`,
-        marginTop: heroItem ? "-48px" : 0,
+        padding: `0 48px 80px`,
+        marginTop: recentItems.length > 0 ? "-48px" : "calc(72px + 32px)",
         position: "relative", zIndex: 10,
         display: "flex", flexDirection: "column", gap: 40,
       }}>
