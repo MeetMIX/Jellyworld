@@ -14,45 +14,59 @@ export default function NavBar({ libraries, session }: { libraries: JellyfinLibr
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (searchOpen) inputRef.current?.focus();
-  }, [searchOpen]);
+  useEffect(() => { if (searchOpen) inputRef.current?.focus(); }, [searchOpen]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (query.trim()) {
       router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-      setSearchOpen(false);
-      setQuery("");
+      setSearchOpen(false); setQuery("");
     }
   }
 
   async function logout() {
     await fetch("/api/auth", { method: "DELETE" });
-    router.push("/login");
-    router.refresh();
+    router.push("/login"); router.refresh();
   }
 
   return (
     <header style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
       height: "var(--jw-nav-height)",
-      display: "flex", alignItems: "center", gap: 32,
+      display: "flex", alignItems: "center", gap: 28,
       padding: "0 var(--jw-page-px)",
       background: "rgba(7,6,11,0.95)",
       backdropFilter: "blur(20px)",
       borderBottom: "1px solid var(--jw-border-subtle)",
     }}>
-      {/* Logo imposant */}
-      <Link href="/" style={{ flexShrink: 0, display: "flex", alignItems: "center", lineHeight: 0 }}>
+
+      {/* ══ LOGO — approche triple-protection ══ */}
+      <Link href="/" style={{
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        lineHeight: 0,
+        /* Réserve l'espace même avant le chargement de l'image */
+        minWidth: "var(--jw-logo-max-width)",
+        height: "var(--jw-nav-height)",
+      }}>
+        {/*
+          Pas de composant Next/Image ici — on utilise <img> natif
+          avec className ET style inline pour une priorité maximale.
+          Le CSS dans globals.css ajoute une troisième couche de protection.
+        */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.png"
           alt="JellyWorld"
-          className="jw-logo"
+          className="jw-logo-img"
           style={{
-            height: "var(--jw-logo-height, 72px)",
+            /* Style inline = priorité la plus haute possible en CSS */
+            height: "68px",
             width: "auto",
+            minHeight: "68px",
+            maxHeight: "68px",
+            maxWidth: "280px",
             objectFit: "contain",
             display: "block",
             flexShrink: 0,
@@ -60,11 +74,17 @@ export default function NavBar({ libraries, session }: { libraries: JellyfinLibr
         />
       </Link>
 
-      <div style={{ width: 1, height: 30, background: "var(--jw-border)", flexShrink: 0 }} />
+      {/* Séparateur */}
+      {!searchOpen && (
+        <div style={{ width: 1, height: 32, background: "var(--jw-border)", flexShrink: 0 }} />
+      )}
 
       {/* Nav links */}
       {!searchOpen && (
-        <nav style={{ display: "flex", alignItems: "center", gap: 24, flex: 1, overflowX: "auto", scrollbarWidth: "none" }}>
+        <nav className="scrollbar-none" style={{
+          display: "flex", alignItems: "center", gap: 24,
+          flex: 1, overflowX: "auto",
+        }}>
           {libraries.map(lib => (
             <Link key={lib.Id} href={`/${lib.Id}`} style={{
               fontSize: 13, fontWeight: pathname === `/${lib.Id}` ? 700 : 500,
@@ -96,7 +116,8 @@ export default function NavBar({ libraries, session }: { libraries: JellyfinLibr
               }}
             />
           </div>
-          <button type="button" onClick={() => { setSearchOpen(false); setQuery(""); }} style={{ background: "none", border: "none", color: "var(--jw-text-2)", cursor: "pointer", fontSize: 13, padding: "6px 8px" }}>
+          <button type="button" onClick={() => { setSearchOpen(false); setQuery(""); }}
+            style={{ background: "none", border: "none", color: "var(--jw-text-2)", cursor: "pointer", fontSize: 13, padding: "6px 8px" }}>
             Annuler
           </button>
         </form>
@@ -104,15 +125,13 @@ export default function NavBar({ libraries, session }: { libraries: JellyfinLibr
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexShrink: 0 }}>
-        <button
-          onClick={() => setSearchOpen(!searchOpen)}
-          style={{
-            width: 38, height: 38, borderRadius: 10, padding: 0,
-            background: searchOpen ? "rgba(107,47,217,0.2)" : "rgba(255,255,255,0.06)",
-            border: `1px solid ${searchOpen ? "rgba(107,47,217,0.5)" : "rgba(255,255,255,0.10)"}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: searchOpen ? "#A06EF0" : "rgba(255,255,255,0.6)",
-          }}>
+        <button onClick={() => setSearchOpen(!searchOpen)} style={{
+          width: 38, height: 38, borderRadius: 10, padding: 0,
+          background: searchOpen ? "rgba(107,47,217,0.2)" : "rgba(255,255,255,0.06)",
+          border: `1px solid ${searchOpen ? "rgba(107,47,217,0.5)" : "rgba(255,255,255,0.10)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", color: searchOpen ? "#A06EF0" : "rgba(255,255,255,0.6)",
+        }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>

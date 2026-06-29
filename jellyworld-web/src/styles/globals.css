@@ -13,18 +13,31 @@ body {
   overflow-x: hidden;
 }
 a { color: inherit; text-decoration: none; }
-img { display: block; }
 
-/* ── LOGO — règle globale blindée, priorité maximale ── */
-img.jw-logo,
-img[alt="JellyWorld"] {
+/* ════════════════════════════════════════════
+   LOGO — priorité absolue, résiste à tout reset
+   ════════════════════════════════════════════ */
+.jw-logo-img {
+  height: var(--jw-logo-height) !important;
+  width: auto !important;
+  min-height: var(--jw-logo-height) !important;
+  max-height: var(--jw-logo-height) !important;
+  max-width: var(--jw-logo-max-width) !important;
+  object-fit: contain !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+  /* Empêche Tailwind de réduire */
+  min-width: 80px !important;
+}
+/* Double sélecteur pour battre tout reset CSS */
+img.jw-logo-img,
+header img[alt="JellyWorld"] {
   height: var(--jw-logo-height) !important;
   width: auto !important;
   min-height: var(--jw-logo-height) !important;
   max-height: var(--jw-logo-height) !important;
   object-fit: contain !important;
   display: block !important;
-  flex-shrink: 0 !important;
 }
 
 @utility scrollbar-none {

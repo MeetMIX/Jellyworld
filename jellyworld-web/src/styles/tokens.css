@@ -16,16 +16,13 @@
   --jw-text-1: #f1f5f9;
   --jw-text-2: #94879e;
   --jw-text-3: #52445e;
-  --jw-overlay-dark:   rgba(7, 6, 11, 0.85);
-  --jw-nav-height: 80px;
+  --jw-nav-height: 88px;   /* ← plus haut pour loger le logo */
   --jw-page-px:    48px;
-  --jw-r-sm:  6px;
-  --jw-r-md:  10px;
-  --jw-r-lg:  16px;
-  --jw-r-xl:  20px;
-  --jw-r-card: 12px;
+  --jw-r-sm:  6px; --jw-r-md: 10px; --jw-r-lg: 16px;
+  --jw-r-xl:  20px; --jw-r-card: 12px;
   --jw-transition: 200ms ease;
 
-  /* Logo — contrôle centralisé */
-  --jw-logo-height: 72px;
+  /* ═══ LOGO — taille imposante ═══ */
+  --jw-logo-height: 68px;
+  --jw-logo-max-width: 280px;
 }
