@@ -15,11 +15,11 @@ function JellyWorldLogo() {
     // Force appliqué après que React et Tailwind ont fini leur travail
     if (!imgRef.current) return;
     const el = imgRef.current;
-    el.style.setProperty("height", "68px", "important");
+    el.style.setProperty("height", "268px", "important");
     el.style.setProperty("width", "auto", "important");
-    el.style.setProperty("min-height", "68px", "important");
-    el.style.setProperty("max-height", "68px", "important");
-    el.style.setProperty("max-width", "280px", "important");
+    el.style.setProperty("min-height", "268px", "important");
+    el.style.setProperty("max-height", "268px", "important");
+    el.style.setProperty("max-width", "680px", "important");
     el.style.setProperty("object-fit", "contain", "important");
     el.style.setProperty("display", "block", "important");
     el.style.setProperty("flex-shrink", "0", "important");
