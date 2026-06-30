@@ -63,9 +63,20 @@ async function getPlaybackInfo(itemId: string, userId: string, token: string, au
 
 const inFlightRequests = new Map<string, Promise<any>>();
 
+// ✅ Headers CORS systématiques sur TOUTES les réponses, y compris erreurs
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+  "Access-Control-Allow-Headers": "*",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session) return new NextResponse("Non authentifié", { status: 401 });
+  if (!session) return new NextResponse("Non authentifié", { status: 401, headers: CORS_HEADERS });
 
   const { searchParams } = req.nextUrl;
   const proxyUrl   = searchParams.get("url");
@@ -99,7 +110,7 @@ export async function GET(req: NextRequest) {
 
       if (!playbackInfo?.MediaSources?.length) {
         console.error("[HLS Proxy] PlaybackInfo n'a retourné aucune MediaSource");
-        return new NextResponse("Impossible d'obtenir les infos de lecture", { status: 502 });
+        return new NextResponse("Impossible d'obtenir les infos de lecture", { status: 502, headers: CORS_HEADERS });
       }
 
       const source = playbackInfo.MediaSources.find((s: any) => s.Id === versionId) ?? playbackInfo.MediaSources[0];
@@ -123,24 +134,19 @@ export async function GET(req: NextRequest) {
         });
         targetUrl = `${INTERNAL}/Videos/${itemId}/master.m3u8?${p}`;
       } else {
-        return new NextResponse("Aucune méthode de lecture disponible", { status: 502 });
+        return new NextResponse("Aucune méthode de lecture disponible", { status: 502, headers: CORS_HEADERS });
       }
     } else {
-      return new NextResponse("Paramètres manquants", { status: 400 });
+      return new NextResponse("Paramètres manquants", { status: 400, headers: CORS_HEADERS });
     }
-
-    console.log(`[HLS Proxy] → ${targetUrl.substring(0, 200)}...`);
 
     if (dedupeKey && inFlightRequests.has(dedupeKey)) {
       try {
         const result = await inFlightRequests.get(dedupeKey)!;
-        // ✅ FIX : on passe explicitement targetUrl ici aussi (capturé par closure)
         return buildResponse(result, req, targetUrl);
       } catch {}
     }
 
-    // ✅ FIX PRINCIPAL : on capture targetUrl dans une constante locale AVANT
-    // la closure async, pour être certain qu'elle est bien fixée au bon moment
     const capturedUrl = targetUrl;
 
     const fetchPromise = (async () => {
@@ -155,7 +161,7 @@ export async function GET(req: NextRequest) {
         if (!upstream.ok) {
           const body = await upstream.text().catch(() => "");
           console.error(`[HLS Proxy] Jellyfin ${upstream.status}: ${body.substring(0, 200)}`);
-          return { status: 502, body: `Jellyfin ${upstream.status}: ${body.substring(0,100)}`, contentType: "text/plain" };
+          return { status: 502, body: `Jellyfin ${upstream.status}`, contentType: "text/plain" };
         }
 
         const contentType = upstream.headers.get("content-type") ?? "";
@@ -165,12 +171,8 @@ export async function GET(req: NextRequest) {
         if (!looksLikeRawFile && (contentType.includes("mpegurl") || capturedUrl.includes(".m3u8"))) {
           const text = await upstream.text();
           if (!text.startsWith("#EXTM3U")) {
-            console.error(`[HLS Proxy] Pas un manifest valide:`, text.substring(0, 200));
             return { status: 502, body: "Manifest HLS invalide", contentType: "text/plain" };
           }
-          // ✅ DEBUG : log le manifest brut ET l'URL source utilisée pour le réécrire
-          console.log(`[HLS Proxy] Manifest brut depuis ${capturedUrl.substring(0, 100)}:`);
-          console.log(text.substring(0, 500));
           return { status: 200, body: text, contentType: "application/vnd.apple.mpegurl", sourceUrl: capturedUrl };
         }
 
@@ -196,29 +198,37 @@ export async function GET(req: NextRequest) {
       const isTimeout = e.name === "AbortError";
       return new NextResponse(
         isTimeout ? "Timeout Jellyfin" : `Erreur: ${e.message}`,
-        { status: isTimeout ? 504 : 502 }
+        { status: isTimeout ? 504 : 502, headers: CORS_HEADERS }
       );
     }
 
   } catch (e: any) {
     console.error("[HLS Proxy] Erreur:", e.message);
-    return new NextResponse(`Erreur: ${e.message}`, { status: 500 });
+    return new NextResponse(`Erreur: ${e.message}`, { status: 500, headers: CORS_HEADERS });
   }
 }
 
 function buildResponse(result: any, req: NextRequest, sourceUrl: string): NextResponse {
   if (result.status !== 200) {
-    return new NextResponse(result.body as string, { status: result.status });
+    return new NextResponse(result.body as string, { status: result.status, headers: CORS_HEADERS });
   }
   if (result.contentType === "application/vnd.apple.mpegurl") {
     const rewritten = rewriteM3u8(result.body as string, req, sourceUrl);
-    console.log(`[HLS Proxy] Manifest réécrit (premières lignes):`, rewritten.substring(0, 400));
     return new NextResponse(rewritten, {
-      headers: { "Content-Type": result.contentType, "Cache-Control": "no-cache, no-store", "Access-Control-Allow-Origin": "*" },
+      headers: {
+        "Content-Type": result.contentType,
+        "Cache-Control": "no-cache, no-store",
+        ...CORS_HEADERS,
+      },
     });
   }
+  // ✅ Pour les segments .ts — CORS + headers explicites pour hls.js
   return new NextResponse(result.body as ReadableStream, {
-    headers: { "Content-Type": result.contentType, "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" },
+    headers: {
+      "Content-Type": result.contentType,
+      "Cache-Control": "no-cache",
+      ...CORS_HEADERS,
+    },
   });
 }
 
@@ -227,12 +237,9 @@ function rewriteM3u8(content: string, req: NextRequest, sourceUrl: string): stri
   let sourceBase: URL;
   try {
     sourceBase = new URL(sourceUrl);
-  } catch (e) {
-    console.error(`[HLS Proxy] sourceUrl invalide: "${sourceUrl}"`, e);
+  } catch {
     sourceBase = new URL(INTERNAL);
   }
-
-  console.log(`[HLS Proxy] rewriteM3u8 — sourceBase.pathname="${sourceBase.pathname}"`);
 
   return content.split("\n").map(line => {
     const t = line.trim();
