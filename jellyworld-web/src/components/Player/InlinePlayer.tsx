@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface MediaStream { Type: string; Index: number; Codec?: string; DisplayTitle?: string; Width?: number; Height?: number; IsDefault?: boolean; Language?: string; BitRate?: number; }
 interface Version { Id: string; Name: string; MediaStreams?: MediaStream[]; Path?: string; }
-interface Props { itemId: string; itemName: string; versions: Version[]; resumeTicks?: number; }
+interface Props { itemId: string; itemName: string; versions: Version[]; resumeTicks?: number; logoUrl?: string; }
 
 export default function InlinePlayer({ itemId, itemName, versions, resumeTicks = 0 }: Props) {
   const router = useRouter();

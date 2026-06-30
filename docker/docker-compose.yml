@@ -27,6 +27,12 @@ services:
     volumes:
       - ../jellyworld-web:/app # Docker Ubuntu va lire le code de ce dossier
     command: sh -c "npm install && npm run dev"
+    # ⚠️ NEXT_PUBLIC_JELLYFIN_API n'est lue par aucun fichier du code (la variable
+    # attendue est NEXT_PUBLIC_JELLYFIN_URL) — ces réglages étaient donc ignorés.
+    # Next.js charge de toute façon .env.local du dossier monté ; ces valeurs ne
+    # servent que si ce fichier est absent. Remplace l'IP par celle réellement
+    # joignable depuis le navigateur du client (pas "localhost" sauf accès local).
     environment:
-      - NEXT_PUBLIC_JELLYFIN_API=http://localhost:8096
+      - JELLYFIN_INTERNAL_URL=http://jellyworld-backend:8096
+      - NEXT_PUBLIC_JELLYFIN_URL=http://192.168.220.148:8096
     restart: unless-stopped
