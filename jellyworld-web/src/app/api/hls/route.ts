@@ -249,21 +249,34 @@ function rewriteM3u8(content: string, req: NextRequest, sourceUrl: string): stri
     sourceBase = new URL(INTERNAL);
   }
 
-  return content.split("\n").map(line => {
-    const t = line.trim();
-    if (!t || t.startsWith("#")) return line;
-
+  function resolveAndProxy(raw: string): string {
     let fullUrl: string;
-    if (t.startsWith("http://") || t.startsWith("https://")) {
-      fullUrl = t;
-    } else if (t.startsWith("/")) {
-      fullUrl = `${sourceBase.protocol}//${sourceBase.host}${t}`;
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      fullUrl = raw;
+    } else if (raw.startsWith("/")) {
+      fullUrl = `${sourceBase.protocol}//${sourceBase.host}${raw}`;
     } else {
       const lastSlash = sourceBase.pathname.lastIndexOf("/");
       const basePath = lastSlash >= 0 ? sourceBase.pathname.substring(0, lastSlash + 1) : "/";
-      fullUrl = `${sourceBase.protocol}//${sourceBase.host}${basePath}${t}`;
+      fullUrl = `${sourceBase.protocol}//${sourceBase.host}${basePath}${raw}`;
+    }
+    return `${base}/api/hls?url=${encodeURIComponent(fullUrl)}`;
+  }
+
+  return content.split("\n").map(line => {
+    const t = line.trim();
+    if (!t) return line;
+
+    // Les tags comme #EXT-X-MEDIA (sous-titres), #EXT-X-KEY, #EXT-X-MAP embarquent
+    // leur URL dans un attribut URI="..." plutôt que sur leur propre ligne. Sans ça,
+    // ces URLs (souvent relatives) ne passent jamais par le proxy et le navigateur
+    // tente de les résoudre lui-même -> échec (404 / levelLoadError).
+    if (t.startsWith("#")) {
+      const uriMatch = t.match(/URI="([^"]+)"/);
+      if (!uriMatch) return line;
+      return line.replace(uriMatch[0], `URI="${resolveAndProxy(uriMatch[1])}"`);
     }
 
-    return `${base}/api/hls?url=${encodeURIComponent(fullUrl)}`;
+    return resolveAndProxy(t);
   }).join("\n");
 }
