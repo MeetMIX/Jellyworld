@@ -19,14 +19,17 @@ async function getPlaybackInfo(itemId: string, userId: string, token: string, au
       // HEVC tel quel -> hls.js rejette le manifest (manifestIncompatibleCodecsError).
       // Sans hevc dans la liste, Jellyfin transcode automatiquement en H264 (cf.
       // TranscodingProfiles plus bas), qui lui est lisible partout.
+      // Ni "ac3" ni "eac3" (Dolby Digital / Digital Plus) ne sont décodables par les
+      // navigateurs via MediaSource Extensions -> on ne les déclare nulle part (ni en
+      // DirectPlay ni comme cible de transcodage), pour forcer un audio AAC systématique.
       DirectPlayProfiles: [
         { Container: "webm", Type: "Video", VideoCodec: "vp8,vp9,av1", AudioCodec: "vorbis,opus" },
         { Container: "mp4,m4v", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus,flac,vorbis" },
-        { Container: "mkv", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus,flac,vorbis,ac3,eac3" },
+        { Container: "mkv", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus,flac,vorbis" },
       ],
       TranscodingProfiles: [
         {
-          Container: "ts", Type: "Video", AudioCodec: "aac,mp3,ac3,eac3,opus", VideoCodec: "h264",
+          Container: "ts", Type: "Video", AudioCodec: "aac,mp3,opus", VideoCodec: "h264",
           Context: "Streaming", Protocol: "hls", MaxAudioChannels: "6",
           MinSegments: "1", BreakOnNonKeyFrames: true,
         },
