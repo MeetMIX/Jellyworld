@@ -176,7 +176,7 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemId, action: "progress", positionTicks: secToTicks(videoRef.current.currentTime) }),
       }).catch(() => {});
-    }, 10000);
+    }, 25000); // throttle aligné avec api/progress
     return () => clearInterval(progressTimer.current);
   }, [itemId]);
 
