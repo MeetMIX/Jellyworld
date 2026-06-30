@@ -1,38 +1,76 @@
-version: '3.8'
+networks:
+  web:
+    driver: bridge
+  internal:
+    driver: bridge
 
 services:
+
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: always
+    networks:
+      - web
+      - internal
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/acme.json:/acme.json
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - 988   # <-- ton vrai GID
+
+
+
   # 🎬 LE BACKEND (Jellyfin)
-  jellyfin:
+  jellyworld-backend:
     image: jellyfin/jellyfin:latest
-    container_name: jellyworld-backend
+    container_name: jellyfin-backend
+    restart: unless-stopped
+    networks:
+      - web
+      - internal
     ports:
       - "8096:8096"
+      - "8920:8920"
     volumes:
-      - ./config:/config
-      - ./cache:/cache
-      # ⚠️ ICI, on mettra les chemins vers tes fichiers vidéos sur ton Ubuntu :
-      - /mnt/medias/films:/media/films:ro
-      - /mnt/medias/series:/media/series:ro
+      - /opt/containers/configapp/jellyfin_config:/config
+      - /opt/containers/configapp/jellyfin_config/cache:/cache
+      - /opt/containers/medialink/movies:/media/movies:ro
+      - /opt/containers/medialink/musics:/media/music:ro
     environment:
       - TZ=Europe/Paris
-    restart: unless-stopped
+      - PUID=1000
+      - PGID=1000
+        #mem_limit: 6g
+    cpus: 2.0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyfin.rule=Host(`cinema.meetmix.net`)"
+      - "traefik.http.routers.jellyfin.entrypoints=websecure"
+      - "traefik.http.routers.jellyfin.tls=true"
+      - "traefik.http.routers.jellyfin.tls.certresolver=myresolver"
+      - "traefik.http.routers.jellyfin.middlewares=authelia@docker"
+      - "traefik.http.services.jellyfin.loadbalancer.server.scheme=http"
 
   # 🌐 LE FRONTEND (Ton interface premium)
   jellyworld-web:
     image: node:20-alpine
-    container_name: jellyworld-frontend
+    container_name: jellyworld-web
     working_dir: /app
     ports:
       - "3000:3000"
     volumes:
       - ../jellyworld-web:/app # Docker Ubuntu va lire le code de ce dossier
     command: sh -c "npm install && npm run dev"
-    # ⚠️ NEXT_PUBLIC_JELLYFIN_API n'est lue par aucun fichier du code (la variable
-    # attendue est NEXT_PUBLIC_JELLYFIN_URL) — ces réglages étaient donc ignorés.
-    # Next.js charge de toute façon .env.local du dossier monté ; ces valeurs ne
-    # servent que si ce fichier est absent. Remplace l'IP par celle réellement
-    # joignable depuis le navigateur du client (pas "localhost" sauf accès local).
+    networks:            # 👈 AJOUTE CES DEUX LIGNES
+      - internal         # 👈 ICI
+      - web
     environment:
-      - JELLYFIN_INTERNAL_URL=http://jellyworld-backend:8096
-      - NEXT_PUBLIC_JELLYFIN_URL=http://192.168.220.148:8096
+      - JELLYFIN_INTERNAL_URL=http://jellyfin-backend:8096
+      - JELLYFIN_API_KEY=0111461657f84b4384c8fe7afe4a50de
+      - NEXT_PUBLIC_JELLYFIN_API_KEY=0111461657f84b4384c8fe7afe4a50de
     restart: unless-stopped
