@@ -241,7 +241,6 @@ function buildResponse(result: any, req: NextRequest, sourceUrl: string): NextRe
 }
 
 function rewriteM3u8(content: string, req: NextRequest, sourceUrl: string): string {
-  const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
   let sourceBase: URL;
   try {
     sourceBase = new URL(sourceUrl);
@@ -260,7 +259,12 @@ function rewriteM3u8(content: string, req: NextRequest, sourceUrl: string): stri
       const basePath = lastSlash >= 0 ? sourceBase.pathname.substring(0, lastSlash + 1) : "/";
       fullUrl = `${sourceBase.protocol}//${sourceBase.host}${basePath}${raw}`;
     }
-    return `${base}/api/hls?url=${encodeURIComponent(fullUrl)}`;
+    // URL relative (sans schéma/hôte) : le navigateur la résout par rapport à l'origine
+    // de la page en cours, quelle que soit l'adresse utilisée pour y accéder (IP locale,
+    // nom de domaine...). Évite de dépendre de req.nextUrl.host, qui peut ne pas
+    // refléter l'adresse réellement utilisée par le client (vu en prod : "localhost"
+    // au lieu de l'IP du serveur -> segments inaccessibles depuis le poste du client).
+    return `/api/hls?url=${encodeURIComponent(fullUrl)}`;
   }
 
   return content.split("\n").map(line => {
