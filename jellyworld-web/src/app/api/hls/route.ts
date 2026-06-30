@@ -20,9 +20,6 @@ async function getMediaSourceInfo(itemId: string, versionId: string, userId: str
   } catch { return null; }
 }
 
-// ✅ CRUCIAL : un PlaySessionId STABLE par session de lecture (pas un nouveau à chaque retry/appel)
-// Stocké en mémoire côté serveur, indexé par itemId+userId+audioIdx+subIdx
-// → Jellyfin réutilise le job de transcodage existant au lieu d'en relancer un nouveau
 const sessionIds = new Map<string, string>();
 function getStablePlaySessionId(userId: string, itemId: string, audioIdx: string, subIdx: string): string {
   const key = `${userId}:${itemId}:${audioIdx}:${subIdx}`;
@@ -30,16 +27,12 @@ function getStablePlaySessionId(userId: string, itemId: string, audioIdx: string
   if (!id) {
     id = `jw-${userId}-${itemId}-${Date.now()}`;
     sessionIds.set(key, id);
-    // Nettoyage auto après 5 minutes pour éviter les fuites mémoire
     setTimeout(() => sessionIds.delete(key), 5 * 60 * 1000);
   }
   return id;
 }
 
-// ✅ Empêche plusieurs requêtes concurrentes identiques de partir en parallèle.
-// Si une requête pour le même stream est déjà en vol, on attend son résultat
-// au lieu d'en lancer une deuxième.
-const inFlightRequests = new Map<string, Promise<{ status: number; body: string | ReadableStream | null; contentType: string }>>();
+const inFlightRequests = new Map<string, Promise<any>>();
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -76,15 +69,21 @@ export async function GET(req: NextRequest) {
       const audioCodec = (audioStream?.Codec ?? "").toLowerCase();
       const videoHeight = videoStream?.Height ?? 0;
       const isHDR = videoStream?.VideoRange === "HDR";
-      const canDirectPlay =
-        NATIVE_VIDEO_CODECS.includes(videoCodec) &&
-        NATIVE_AUDIO_CODECS.includes(audioCodec) &&
-        parseInt(subIdx) < 0;
-      const isHeavyTranscode = !canDirectPlay && (videoHeight >= 2000 || isHDR);
+      const hasSubtitleBurn = parseInt(subIdx) >= 0;
 
-      console.log(`[HLS Proxy] Codec=${videoCodec}/${audioCodec} ${videoHeight}p HDR=${isHDR} → DirectPlay=${canDirectPlay} Heavy=${isHeavyTranscode}`);
+      // ✅ FIX CRITIQUE : on sépare la décision vidéo de la décision audio.
+      // Le navigateur lit nativement le H264 — si la vidéo est déjà H264 et
+      // qu'on n'a pas de sous-titres à incruster, on COPIE la vidéo (gratuit
+      // en CPU) même si l'audio doit être transcodé (DTS/AC3 → AAC).
+      // Avant : tout l'item était réencodé en H264 dès que l'AUDIO posait
+      // problème — c'est ce qui causait les ralentissements énormes.
+      const videoCanCopy = NATIVE_VIDEO_CODECS.includes(videoCodec) && !hasSubtitleBurn;
+      const audioCanCopy = NATIVE_AUDIO_CODECS.includes(audioCodec);
+      const canFullDirectPlay = videoCanCopy && audioCanCopy;
+      const isHeavyVideoTranscode = !videoCanCopy && (videoHeight >= 2000 || isHDR);
 
-      // ✅ Clé de dédoublonnage : même fichier + mêmes streams = même job
+      console.log(`[HLS Proxy] Codec=${videoCodec}/${audioCodec} ${videoHeight}p HDR=${isHDR} → VideoCopy=${videoCanCopy} AudioCopy=${audioCanCopy} HeavyVideoTC=${isHeavyVideoTranscode}`);
+
       dedupeKey = `${session.userId}:${itemId}:${vid}:${audioIdx}:${subIdx}:${startTicks}`;
       const playSessionId = getStablePlaySessionId(session.userId, itemId, audioIdx, subIdx);
 
@@ -92,19 +91,19 @@ export async function GET(req: NextRequest) {
         api_key: session.token,
         MediaSourceId: vid,
         DeviceId: `jellyworld-${session.userId}`,
-        AudioCodec: "aac,mp3,ac3,eac3,opus",
         TranscodingContainer: "ts",
         TranscodingMaxAudioChannels: "6",
         EnableMpegtsM2TsMode: "false",
         ...(parseInt(audioIdx) >= 0 ? { AudioStreamIndex: audioIdx } : {}),
         ...(parseInt(subIdx) >= 0 ? { SubtitleStreamIndex: subIdx, SubtitleMethod: "Encode" } : {}),
         ...(parseInt(startTicks) > 0 ? { StartTimeTicks: startTicks } : {}),
-        PlaySessionId: playSessionId, // ✅ STABLE, pas Date.now() à chaque appel
+        PlaySessionId: playSessionId,
       });
 
-      if (canDirectPlay) {
+      // ✅ Vidéo : copy si possible, sinon transcoder (avec downscale si lourd)
+      if (videoCanCopy) {
         p.set("VideoCodec", "copy");
-      } else if (isHeavyTranscode) {
+      } else if (isHeavyVideoTranscode) {
         p.set("VideoCodec", "h264");
         p.set("MaxWidth", "1920");
         p.set("MaxHeight", "1080");
@@ -116,23 +115,27 @@ export async function GET(req: NextRequest) {
         p.set("MaxVideoBitDepth", "8");
       }
 
+      // ✅ Audio : codec accepté large (le navigateur HLS gère bien aac/mp3/ac3/eac3 en TS)
+      // Si déjà natif, copy ; sinon transcoder seulement l'audio (quasi gratuit en CPU)
+      if (audioCanCopy) {
+        p.set("AudioCodec", "copy");
+      } else {
+        p.set("AudioCodec", "aac");
+      }
+
       targetUrl = `${INTERNAL}/Videos/${itemId}/stream.m3u8?${p}`;
     } else {
       return new NextResponse("Paramètres manquants", { status: 400 });
     }
 
-    console.log(`[HLS Proxy] → ${targetUrl.substring(0, 160)}...`);
+    console.log(`[HLS Proxy] → ${targetUrl.substring(0, 170)}...`);
 
-    // ✅ Si une requête identique est déjà en vol, on attend SON résultat
-    // au lieu de relancer un nouveau fetch (et donc un nouveau ffmpeg)
     if (dedupeKey && inFlightRequests.has(dedupeKey)) {
-      console.log(`[HLS Proxy] Requête déjà en vol pour ${dedupeKey}, attente du résultat existant...`);
+      console.log(`[HLS Proxy] Requête déjà en vol pour ${dedupeKey}, attente...`);
       try {
         const result = await inFlightRequests.get(dedupeKey)!;
         return buildResponse(result, req);
-      } catch {
-        // Le résultat en vol a échoué, on continue avec une nouvelle tentative
-      }
+      } catch {}
     }
 
     const fetchPromise = (async () => {
@@ -170,9 +173,8 @@ export async function GET(req: NextRequest) {
     })();
 
     if (dedupeKey) {
-      inFlightRequests.set(dedupeKey, fetchPromise as any);
+      inFlightRequests.set(dedupeKey, fetchPromise);
       fetchPromise.finally(() => {
-        // Garde le résultat en cache 2s pour les requêtes qui arrivent juste après
         setTimeout(() => inFlightRequests.delete(dedupeKey!), 2000);
       });
     }
@@ -195,10 +197,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function buildResponse(
-  result: { status: number; body: string | ReadableStream | null; contentType: string },
-  req: NextRequest
-): NextResponse {
+function buildResponse(result: any, req: NextRequest): NextResponse {
   if (result.status !== 200) {
     return new NextResponse(result.body as string, { status: result.status });
   }
