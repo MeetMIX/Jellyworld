@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
   try {
     let targetUrl: string;
-    let isRawFile = false; // ✅ Détecte si c'est le fichier brut (pas un manifest)
+    let isHeavyTranscode = false;
 
     if (proxyUrl) {
       const decoded = decodeURIComponent(proxyUrl);
@@ -53,26 +53,24 @@ export async function GET(req: NextRequest) {
 
       const videoCodec = (videoStream?.Codec ?? "").toLowerCase();
       const audioCodec = (audioStream?.Codec ?? "").toLowerCase();
+      const videoHeight = videoStream?.Height ?? 0;
+      const isHDR = videoStream?.VideoRange === "HDR" || /dv|dolby\s*vision|hdr/i.test(mediaSource?.Name ?? "");
       const canDirectPlay =
         NATIVE_VIDEO_CODECS.includes(videoCodec) &&
         NATIVE_AUDIO_CODECS.includes(audioCodec) &&
         parseInt(subIdx) < 0;
 
-      console.log(`[HLS Proxy] Codec vidéo=${videoCodec} audio=${audioCodec} → DirectPlay=${canDirectPlay}`);
+      // ✅ Transcodage 4K HEVC/HDR = très lourd CPU → on cible 1080p pour rester fluide
+      isHeavyTranscode = !canDirectPlay && (videoHeight >= 2000 || isHDR);
 
-      // ✅ FIX MAJEUR : toujours utiliser le transcodage HLS via /stream.m3u8
-      // Même en "DirectPlay", on demande à Jellyfin un vrai manifest HLS
-      // (remux container sans réencoder la vidéo si même codec) plutôt que
-      // /master.m3u8?static=true qui retournait le fichier brut de 13GB.
+      console.log(`[HLS Proxy] Codec=${videoCodec}/${audioCodec} ${videoHeight}p HDR=${isHDR} → DirectPlay=${canDirectPlay} HeavyTranscode=${isHeavyTranscode}`);
+
       const p = new URLSearchParams({
         api_key: session.token,
         MediaSourceId: vid,
         DeviceId: `jellyworld-${session.userId}`,
-        VideoCodec: canDirectPlay ? videoCodec || "h264" : "h264",
-        AudioCodec: canDirectPlay ? "aac,mp3,ac3,eac3,opus" : "aac,mp3,ac3,eac3,opus",
+        AudioCodec: "aac,mp3,ac3,eac3,opus",
         TranscodingContainer: "ts",
-        // Si DirectPlay possible, on copie le flux vidéo sans réencoder (rapide)
-        ...(canDirectPlay ? { VideoCodec: "copy" } : { VideoBitRate: "6000000", MaxVideoBitDepth: "8" }),
         TranscodingMaxAudioChannels: "6",
         EnableMpegtsM2TsMode: "false",
         ...(parseInt(audioIdx) >= 0 ? { AudioStreamIndex: audioIdx } : {}),
@@ -80,19 +78,38 @@ export async function GET(req: NextRequest) {
         ...(parseInt(startTicks) > 0 ? { StartTimeTicks: startTicks } : {}),
         PlaySessionId: `jw-${session.userId}-${Date.now()}`,
       });
+
+      if (canDirectPlay) {
+        p.set("VideoCodec", "copy");
+      } else if (isHeavyTranscode) {
+        // ✅ Réduit à 1080p — divise la charge CPU par ~4 vs garder en 4K
+        p.set("VideoCodec", "h264");
+        p.set("MaxWidth", "1920");
+        p.set("MaxHeight", "1080");
+        p.set("VideoBitRate", "5000000");
+        p.set("MaxVideoBitDepth", "8");
+        // preset rapide pour ffmpeg = moins de qualité d'encodage mais bien plus rapide
+        p.set("EncoderPreset", "veryfast");
+      } else {
+        p.set("VideoCodec", "h264");
+        p.set("VideoBitRate", "6000000");
+        p.set("MaxVideoBitDepth", "8");
+      }
+
       targetUrl = `${INTERNAL}/Videos/${itemId}/stream.m3u8?${p}`;
     } else {
       return new NextResponse("Paramètres manquants", { status: 400 });
     }
 
-    console.log(`[HLS Proxy] → ${targetUrl.substring(0, 150)}...`);
+    console.log(`[HLS Proxy] → ${targetUrl.substring(0, 160)}...`);
 
     let lastError: Error | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 1500));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
 
       const controller = new AbortController();
-      const timeoutMs = proxyUrl ? 20000 : 45000;
+      // ✅ Timeout étendu pour les gros transcodages 4K/HDR (jusqu'à 90s)
+      const timeoutMs = proxyUrl ? 20000 : (isHeavyTranscode ? 90000 : 45000);
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
@@ -102,33 +119,25 @@ export async function GET(req: NextRequest) {
         if (!upstream.ok) {
           const body = await upstream.text().catch(() => "");
           console.error(`[HLS Proxy] Jellyfin ${upstream.status}: ${body.substring(0, 150)}`);
-          if (upstream.status >= 500 && attempt < 2) { lastError = new Error(`HTTP ${upstream.status}`); continue; }
+          if (upstream.status >= 500 && attempt < 1) { lastError = new Error(`HTTP ${upstream.status}`); continue; }
           return new NextResponse(`Jellyfin ${upstream.status}`, { status: 502 });
         }
 
         const contentType = upstream.headers.get("content-type") ?? "";
         const contentLength = parseInt(upstream.headers.get("content-length") ?? "0");
-
-        // ✅ GARDE-FOU : si le "manifest" fait plus de 1 Mo, c'est le fichier brut, pas un .m3u8
         const looksLikeRawFile = contentLength > 1_000_000;
 
         if (!looksLikeRawFile && (contentType.includes("mpegurl") || targetUrl.includes(".m3u8"))) {
           const text = await upstream.text();
-          // Vérif supplémentaire : un vrai manifest commence par #EXTM3U
           if (!text.startsWith("#EXTM3U")) {
-            console.error(`[HLS Proxy] Réponse inattendue (pas un manifest HLS valide), taille=${text.length}`);
-            return new NextResponse("Jellyfin n'a pas retourné un manifest HLS valide", { status: 502 });
+            console.error(`[HLS Proxy] Pas un manifest valide, taille=${text.length}`);
+            return new NextResponse("Manifest HLS invalide", { status: 502 });
           }
           return new NextResponse(rewriteM3u8(text, req), {
-            headers: {
-              "Content-Type": "application/vnd.apple.mpegurl",
-              "Cache-Control": "no-cache, no-store",
-              "Access-Control-Allow-Origin": "*",
-            },
+            headers: { "Content-Type": "application/vnd.apple.mpegurl", "Cache-Control": "no-cache, no-store", "Access-Control-Allow-Origin": "*" },
           });
         }
 
-        // Segments .ts ou tout contenu binaire → stream direct
         return new NextResponse(upstream.body, {
           headers: { "Content-Type": contentType || "video/mp2t", "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" },
         });
@@ -136,18 +145,20 @@ export async function GET(req: NextRequest) {
       } catch (e: any) {
         clearTimeout(timer);
         lastError = e;
-        console.error(`[HLS Proxy] Tentative ${attempt + 1} échouée:`, e.message);
-        if (attempt === 2) break;
+        console.error(`[HLS Proxy] Tentative ${attempt + 1} échouée (timeout=${timeoutMs}ms):`, e.message);
+        if (attempt === 1) break;
       }
     }
 
     const isTimeout = lastError?.name === "AbortError";
     return new NextResponse(
-      isTimeout ? "Timeout Jellyfin (45s)" : `Erreur réseau: ${lastError?.message}`,
+      isTimeout
+        ? `Le transcodage prend trop de temps (>${isHeavyTranscode ? "90" : "45"}s). Le fichier 4K/HDR demande beaucoup de CPU.`
+        : `Erreur réseau: ${lastError?.message}`,
       { status: isTimeout ? 504 : 502 }
     );
   } catch (e: any) {
-    console.error("[HLS Proxy] Erreur inattendue:", e.message);
+    console.error("[HLS Proxy] Erreur:", e.message);
     return new NextResponse(`Erreur: ${e.message}`, { status: 500 });
   }
 }
