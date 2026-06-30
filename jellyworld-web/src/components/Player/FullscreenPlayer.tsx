@@ -157,14 +157,26 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
     return () => { hlsRef.current?.destroy(); };
   }, []); // eslint-disable-line
 
+  // Changer de piste audio/sous-titres force Jellyfin à démarrer un nouveau
+  // transcodage (ffmpeg). Sans signaler explicitement l'arrêt de l'ancienne session,
+  // les deux tournent en concurrence quelques secondes -> le nouveau met du temps à
+  // démarrer et le proxy abandonne avant qu'il soit prêt (image figée, timeout 504).
+  async function stopCurrentEncoding(pos: number) {
+    await fetch("/api/progress", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, action: "stop", positionTicks: pos }),
+    }).catch(() => {});
+  }
   async function changeAudio(idx: number) {
     setCurAudio(idx); setShowAudioMenu(false);
     const pos = secToTicks(videoRef.current?.currentTime ?? 0);
+    await stopCurrentEncoding(pos);
     await initHls(idx, curSub, pos);
   }
   async function changeSub(idx: number) {
     setCurSub(idx); setShowSubMenu(false);
     const pos = secToTicks(videoRef.current?.currentTime ?? 0);
+    await stopCurrentEncoding(pos);
     await initHls(curAudio, idx, pos);
   }
 
