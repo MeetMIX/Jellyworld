@@ -173,10 +173,14 @@ export async function GET(req: NextRequest) {
         }
 
         const contentType = upstream.headers.get("content-type") ?? "";
-        const contentLength = parseInt(upstream.headers.get("content-length") ?? "0");
-        const looksLikeRawFile = contentLength > 1_000_000;
 
-        if (!looksLikeRawFile && (contentType.includes("mpegurl") || capturedUrl.includes(".m3u8"))) {
+        // Un manifeste .m3u8 est toujours un petit fichier texte — on le détecte par
+        // content-type OU extension d'URL, sans condition sur la taille. Avant ce
+        // correctif, un Content-Length déclaré > 1 Mo (même pour un vrai .m3u8) faisait
+        // sauter cette branche : le flux binaire brut atterrissait dans buildResponse()
+        // avec un contentType "mpegurl", qui tentait alors content.split() sur un
+        // ReadableStream -> crash "content.split is not a function".
+        if (contentType.includes("mpegurl") || capturedUrl.includes(".m3u8")) {
           const text = await upstream.text();
           if (!text.startsWith("#EXTM3U")) {
             return { status: 502, body: "Manifest HLS invalide", contentType: "text/plain" };
