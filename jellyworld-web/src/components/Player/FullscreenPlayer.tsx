@@ -11,7 +11,9 @@ interface MediaStream {
 interface Props {
   itemId: string; versionId: string;
   audioIdx: number; subIdx: number; startTicks: number;
-  userId: string; token: string; logoUrl?: string;
+  userId: string; token: string;
+  logoUrl?: string;
+  backdropUrl?: string;
 }
 
 function formatTime(sec: number) {
@@ -26,7 +28,6 @@ function formatClock(remainSec: number) {
 function secToTicks(s: number) { return Math.floor(s * 10000000); }
 function ticksToSec(t: number) { return Math.floor(t / 10000000); }
 
-// ✅ Utilise /api/hls — proxy côté serveur, jamais Jellyfin directement
 function buildHlsUrl(itemId: string, versionId: string, audioIdx: number, subIdx: number, startTicks: number) {
   const p = new URLSearchParams({
     itemId, versionId,
@@ -37,7 +38,7 @@ function buildHlsUrl(itemId: string, versionId: string, audioIdx: number, subIdx
   return `/api/hls?${p}`;
 }
 
-export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudio, subIdx: initSub, startTicks, logoUrl }: Props) {
+export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudio, subIdx: initSub, startTicks, logoUrl, backdropUrl }: Props) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
@@ -63,7 +64,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
   const [curAudio, setCurAudio] = useState(initAudio);
   const [curSub, setCurSub]     = useState(initSub);
 
-  // Infos item + streams pour les menus
   useEffect(() => {
     fetch(`/api/progress?itemId=${itemId}&action=get`)
       .then(r => r.json())
@@ -76,12 +76,10 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
       }).catch(() => {});
   }, [itemId]);
 
-  // Init / reinit HLS
   const initHls = useCallback(async (audio: number, sub: number, ticks: number) => {
     if (!videoRef.current) return;
     setLoading(true); setError("");
 
-    // ✅ URL proxy — jamais Jellyfin directement
     const url = buildHlsUrl(itemId, versionId, audio, sub, ticks);
     console.log("[Player] Loading:", url);
 
@@ -97,9 +95,9 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
         manifestLoadingMaxRetry: 4,
         levelLoadingMaxRetry: 4,
         fragLoadingMaxRetry: 4,
-        manifestLoadingTimeOut: 20000,
-        levelLoadingTimeOut: 20000,
-        fragLoadingTimeOut: 20000,
+        manifestLoadingTimeOut: 25000,
+        levelLoadingTimeOut: 25000,
+        fragLoadingTimeOut: 25000,
       });
       hlsRef.current = hls;
 
@@ -118,7 +116,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
             }).catch(() => {});
           })
           .catch(e => {
-            // AbortError normal si l'utilisateur agit avant le chargement
             if (e.name !== "AbortError") console.warn("play() error:", e);
             setLoading(false);
           });
@@ -133,7 +130,7 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
             setError(
               `Impossible de lire ce média.\n\n` +
               `Détail : ${data.details}\n\n` +
-              `Vérifiez que Jellyfin est accessible depuis le serveur Docker.`
+              `Le transcodage peut prendre du temps pour les fichiers 4K/HDR volumineux.`
             );
             setLoading(false);
           }
@@ -155,13 +152,11 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
     }
   }, [itemId, versionId]);
 
-  // Chargement initial
   useEffect(() => {
     initHls(initAudio, initSub, startTicks);
     return () => { hlsRef.current?.destroy(); };
   }, []); // eslint-disable-line
 
-  // Changer audio/ST depuis la position courante
   async function changeAudio(idx: number) {
     setCurAudio(idx); setShowAudioMenu(false);
     const pos = secToTicks(videoRef.current?.currentTime ?? 0);
@@ -173,7 +168,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
     await initHls(curAudio, idx, pos);
   }
 
-  // Progression toutes les 10s
   useEffect(() => {
     progressTimer.current = setInterval(() => {
       if (!videoRef.current || videoRef.current.paused) return;
@@ -254,7 +248,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
     boxShadow: "0 12px 40px rgba(0,0,0,0.8)",
     zIndex: 10,
   };
-
   const menuBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: "9px 14px", borderRadius: 8, border: "none", cursor: "pointer",
     background: active ? "rgba(139,63,200,0.22)" : "none",
@@ -267,8 +260,21 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
     <div ref={containerRef}
       onMouseMove={showCtrl} onTouchStart={showCtrl}
       onClick={() => { setShowAudioMenu(false); setShowSubMenu(false); showCtrl(); }}
-      style={{ position: "fixed", inset: 0, background: "#000", zIndex: 9999, cursor: showControls ? "default" : "none" }}
+      style={{ position: "fixed", inset: 0, background: "#000", zIndex: 9999, cursor: showControls ? "default" : "none", overflow: "hidden" }}
     >
+      {/* ── Backdrop flou en fond pendant le chargement ── */}
+      {backdropUrl && loading && !error && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 0,
+          backgroundImage: `url(${backdropUrl})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          filter: "blur(12px) brightness(0.35)",
+          transform: "scale(1.1)",
+          transition: "opacity 0.5s ease",
+        }} />
+      )}
+
       {/* Vidéo */}
       <video ref={videoRef}
         onClick={e => { e.stopPropagation(); togglePlay(); }}
@@ -279,21 +285,29 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
         onEnded={saveAndExit}
         onWaiting={() => setLoading(true)}
         onCanPlay={() => setLoading(false)}
-        style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        style={{ width: "100%", height: "100%", objectFit: "contain", position: "relative", zIndex: 1 }}
         playsInline
       />
 
-      {/* Spinner */}
+      {/* Spinner + logo pendant le chargement */}
       {loading && !error && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-          <div style={{ width: 52, height: 52, border: "3px solid rgba(255,255,255,0.12)", borderTopColor: "#fff", borderRadius: "50%", animation: "jw-spin 0.7s linear infinite" }} />
+        <div style={{ position: "absolute", inset: 0, zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, pointerEvents: "none" }}>
+          {logoUrl && !logoFailed && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt={itemName}
+              onError={() => setLogoFailed(true)}
+              style={{ maxHeight: 90, maxWidth: 360, objectFit: "contain", filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.9))" }}
+            />
+          )}
+          <div style={{ width: 52, height: 52, border: "3px solid rgba(255,255,255,0.15)", borderTopColor: "#fff", borderRadius: "50%", animation: "jw-spin 0.7s linear infinite" }} />
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: 0 }}>Préparation du flux vidéo…</p>
           <style>{`@keyframes jw-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
 
       {/* Erreur */}
       {error && (
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "rgba(8,6,18,0.97)", border: "1px solid rgba(239,68,68,0.4)", padding: "32px 40px", borderRadius: 16, color: "#f87171", textAlign: "center", maxWidth: 520, lineHeight: 1.65 }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 3, background: "rgba(8,6,18,0.97)", border: "1px solid rgba(239,68,68,0.4)", padding: "32px 40px", borderRadius: 16, color: "#f87171", textAlign: "center", maxWidth: 520, lineHeight: 1.65 }}>
           <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 12px", color: "#fff" }}>⚠ Erreur de lecture</p>
           <p style={{ fontSize: 13, margin: "0 0 24px", whiteSpace: "pre-wrap", opacity: 0.85 }}>{error}</p>
           <button onClick={saveAndExit} style={{ padding: "10px 28px", borderRadius: 8, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", cursor: "pointer", fontSize: 13 }}>← Retour</button>
@@ -302,23 +316,19 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
 
       {/* Overlay contrôles */}
       <div style={{
-        position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+        position: "absolute", inset: 0, zIndex: 2, display: "flex", flexDirection: "column",
         opacity: showControls ? 1 : 0,
         transition: "opacity 0.3s ease",
         pointerEvents: showControls ? "auto" : "none",
       }}>
-        {/* Top */}
         <div style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.88) 0%, transparent 100%)", padding: "18px 24px 40px", display: "flex", alignItems: "center", gap: 16 }}>
           <button onClick={saveAndExit} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, opacity: 0.8, lineHeight: 0 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
           </button>
           <div style={{ flex: 1 }}>
-            {logoUrl && !logoFailed ? (
+            {logoUrl && !logoFailed && !loading ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt={itemName}
-                onError={() => setLogoFailed(true)}
-                style={{ maxHeight: 46, maxWidth: 260, objectFit: "contain", filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.9))" }}
-              />
+              <img src={logoUrl} alt={itemName} style={{ maxHeight: 46, maxWidth: 260, objectFit: "contain", filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.9))" }} />
             ) : itemName ? (
               <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>{itemName}</p>
             ) : null}
@@ -327,10 +337,7 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
 
         <div style={{ flex: 1 }} onClick={e => { e.stopPropagation(); togglePlay(); }} />
 
-        {/* Bottom */}
         <div style={{ background: "linear-gradient(to top, rgba(0,0,0,0.94) 0%, transparent 100%)", padding: "40px 24px 20px" }} onClick={e => e.stopPropagation()}>
-
-          {/* Barre progression */}
           <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center", marginBottom: 6, cursor: "pointer" }}>
             <div style={{ position: "absolute", inset: 0, height: 4, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.2)", borderRadius: 2 }} />
             <div style={{ position: "absolute", left: 0, height: 4, top: "50%", transform: "translateY(-50%)", width: `${pct}%`, background: "linear-gradient(90deg, #6B2FD9, #E03050)", borderRadius: 2 }} />
@@ -341,7 +348,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
             />
           </div>
 
-          {/* Temps */}
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", fontVariantNumeric: "tabular-nums" }}>
               {formatTime(currentTime)} / {formatTime(duration)}
@@ -353,7 +359,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
             )}
           </div>
 
-          {/* Boutons */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={togglePlay} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 0, lineHeight: 0 }}>
               {playing
@@ -383,7 +388,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
 
             <div style={{ flex: 1 }} />
 
-            {/* Menu Audio */}
             <div style={{ position: "relative" }}>
               <button onClick={e => { e.stopPropagation(); setShowAudioMenu(v => !v); setShowSubMenu(false); }} style={{
                 padding: "6px 12px", borderRadius: 7,
@@ -410,7 +414,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
               )}
             </div>
 
-            {/* Menu Sous-titres */}
             <div style={{ position: "relative" }}>
               <button onClick={e => { e.stopPropagation(); setShowSubMenu(v => !v); setShowAudioMenu(false); }} style={{
                 padding: "6px 12px", borderRadius: 7,
@@ -443,7 +446,6 @@ export default function FullscreenPlayer({ itemId, versionId, audioIdx: initAudi
               )}
             </div>
 
-            {/* Plein écran */}
             <button onClick={toggleFullscreen} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", cursor: "pointer", padding: 0, lineHeight: 0 }}>
               {fullscreen
                 ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/></svg>

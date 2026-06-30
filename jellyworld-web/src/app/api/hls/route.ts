@@ -3,7 +3,6 @@ import { getSession } from "@/lib/auth";
 
 const INTERNAL = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
 
-// Détermine si un codec est lisible nativement par le navigateur (DirectPlay possible)
 const NATIVE_VIDEO_CODECS = ["h264", "avc", "avc1"];
 const NATIVE_AUDIO_CODECS = ["aac", "mp3"];
 
@@ -11,30 +10,14 @@ async function getMediaSourceInfo(itemId: string, versionId: string, userId: str
   try {
     const res = await fetch(`${INTERNAL}/Items/${itemId}/PlaybackInfo?UserId=${userId}`, {
       method: "POST",
-      headers: {
-        Authorization: `MediaBrowser Token="${token}"`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        DeviceProfile: {
-          MaxStreamingBitrate: 120000000,
-          DirectPlayProfiles: [
-            { Container: "mp4,mkv,webm", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus" },
-          ],
-          TranscodingProfiles: [
-            { Container: "ts", Type: "Video", VideoCodec: "h264", AudioCodec: "aac", Context: "Streaming", Protocol: "hls" },
-          ],
-        },
-      }),
+      headers: { Authorization: `MediaBrowser Token="${token}"`, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
       cache: "no-store",
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const source = data.MediaSources?.find((s: any) => s.Id === versionId) ?? data.MediaSources?.[0];
-    return source;
-  } catch {
-    return null;
-  }
+    return data.MediaSources?.find((s: any) => s.Id === versionId) ?? data.MediaSources?.[0];
+  } catch { return null; }
 }
 
 export async function GET(req: NextRequest) {
@@ -48,7 +31,6 @@ export async function GET(req: NextRequest) {
   const audioIdx   = searchParams.get("audioIdx") ?? "-1";
   const subIdx     = searchParams.get("subIdx") ?? "-1";
   const startTicks = searchParams.get("startTicks") ?? "0";
-  const directMode = searchParams.get("direct"); // "1" si déjà testé DirectPlay
 
   const headers = {
     Authorization: `MediaBrowser Token="${session.token}"`,
@@ -58,72 +40,59 @@ export async function GET(req: NextRequest) {
 
   try {
     let targetUrl: string;
+    let isRawFile = false; // ✅ Détecte si c'est le fichier brut (pas un manifest)
 
     if (proxyUrl) {
       const decoded = decodeURIComponent(proxyUrl);
       targetUrl = decoded.startsWith("/") ? `${INTERNAL}${decoded}` : decoded;
     } else if (itemId) {
       const vid = versionId ?? itemId;
-
-      // ✅ Vérifie d'abord si DirectPlay est possible (comme Jellyfin natif)
       const mediaSource = await getMediaSourceInfo(itemId, vid, session.userId, session.token);
       const videoStream = mediaSource?.MediaStreams?.find((s: any) => s.Type === "Video");
       const audioStream = mediaSource?.MediaStreams?.find((s: any) => s.Type === "Audio" && (audioIdx === "-1" || s.Index === parseInt(audioIdx)));
 
       const videoCodec = (videoStream?.Codec ?? "").toLowerCase();
       const audioCodec = (audioStream?.Codec ?? "").toLowerCase();
-
       const canDirectPlay =
         NATIVE_VIDEO_CODECS.includes(videoCodec) &&
         NATIVE_AUDIO_CODECS.includes(audioCodec) &&
-        parseInt(subIdx) < 0; // sous-titres forcent l'encodage
+        parseInt(subIdx) < 0;
 
       console.log(`[HLS Proxy] Codec vidéo=${videoCodec} audio=${audioCodec} → DirectPlay=${canDirectPlay}`);
 
-      if (canDirectPlay) {
-        // ✅ DirectPlay HLS — Jellyfin remux sans réencoder (quasi instantané, pas de ffmpeg lourd)
-        const p = new URLSearchParams({
-          api_key: session.token,
-          MediaSourceId: vid,
-          DeviceId: `jellyworld-${session.userId}`,
-          static: "true", // pas de transcoding, juste remux container
-          ...(parseInt(startTicks) > 0 ? { StartTimeTicks: startTicks } : {}),
-        });
-        targetUrl = `${INTERNAL}/Videos/${itemId}/master.m3u8?${p}`;
-      } else {
-        // Transcodage nécessaire — codec non supporté ou sous-titres à incruster
-        const p = new URLSearchParams({
-          api_key: session.token,
-          MediaSourceId: vid,
-          DeviceId: `jellyworld-${session.userId}`,
-          VideoCodec: "h264",
-          AudioCodec: "aac,mp3,ac3,eac3,opus",
-          TranscodingContainer: "ts",
-          VideoBitRate: "6000000",
-          MaxVideoBitDepth: "8",
-          TranscodingMaxAudioChannels: "6",
-          EnableMpegtsM2TsMode: "false",
-          // Accélération matérielle si dispo côté Jellyfin
-          EnableAutoStreamCopy: "true",
-          ...(parseInt(audioIdx) >= 0 ? { AudioStreamIndex: audioIdx } : {}),
-          ...(parseInt(subIdx) >= 0 ? { SubtitleStreamIndex: subIdx, SubtitleMethod: "Encode" } : {}),
-          ...(parseInt(startTicks) > 0 ? { StartTimeTicks: startTicks } : {}),
-          PlaySessionId: `jw-${session.userId}-${Date.now()}`,
-        });
-        targetUrl = `${INTERNAL}/Videos/${itemId}/stream.m3u8?${p}`;
-      }
+      // ✅ FIX MAJEUR : toujours utiliser le transcodage HLS via /stream.m3u8
+      // Même en "DirectPlay", on demande à Jellyfin un vrai manifest HLS
+      // (remux container sans réencoder la vidéo si même codec) plutôt que
+      // /master.m3u8?static=true qui retournait le fichier brut de 13GB.
+      const p = new URLSearchParams({
+        api_key: session.token,
+        MediaSourceId: vid,
+        DeviceId: `jellyworld-${session.userId}`,
+        VideoCodec: canDirectPlay ? videoCodec || "h264" : "h264",
+        AudioCodec: canDirectPlay ? "aac,mp3,ac3,eac3,opus" : "aac,mp3,ac3,eac3,opus",
+        TranscodingContainer: "ts",
+        // Si DirectPlay possible, on copie le flux vidéo sans réencoder (rapide)
+        ...(canDirectPlay ? { VideoCodec: "copy" } : { VideoBitRate: "6000000", MaxVideoBitDepth: "8" }),
+        TranscodingMaxAudioChannels: "6",
+        EnableMpegtsM2TsMode: "false",
+        ...(parseInt(audioIdx) >= 0 ? { AudioStreamIndex: audioIdx } : {}),
+        ...(parseInt(subIdx) >= 0 ? { SubtitleStreamIndex: subIdx, SubtitleMethod: "Encode" } : {}),
+        ...(parseInt(startTicks) > 0 ? { StartTimeTicks: startTicks } : {}),
+        PlaySessionId: `jw-${session.userId}-${Date.now()}`,
+      });
+      targetUrl = `${INTERNAL}/Videos/${itemId}/stream.m3u8?${p}`;
     } else {
       return new NextResponse("Paramètres manquants", { status: 400 });
     }
 
-    console.log(`[HLS Proxy] → ${targetUrl.substring(0, 130)}...`);
+    console.log(`[HLS Proxy] → ${targetUrl.substring(0, 150)}...`);
 
     let lastError: Error | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 1500));
 
       const controller = new AbortController();
-      const timeoutMs = proxyUrl ? 20000 : 60000;
+      const timeoutMs = proxyUrl ? 20000 : 45000;
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
@@ -137,10 +106,19 @@ export async function GET(req: NextRequest) {
           return new NextResponse(`Jellyfin ${upstream.status}`, { status: 502 });
         }
 
-        const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
+        const contentType = upstream.headers.get("content-type") ?? "";
+        const contentLength = parseInt(upstream.headers.get("content-length") ?? "0");
 
-        if (contentType.includes("mpegurl") || targetUrl.includes(".m3u8")) {
+        // ✅ GARDE-FOU : si le "manifest" fait plus de 1 Mo, c'est le fichier brut, pas un .m3u8
+        const looksLikeRawFile = contentLength > 1_000_000;
+
+        if (!looksLikeRawFile && (contentType.includes("mpegurl") || targetUrl.includes(".m3u8"))) {
           const text = await upstream.text();
+          // Vérif supplémentaire : un vrai manifest commence par #EXTM3U
+          if (!text.startsWith("#EXTM3U")) {
+            console.error(`[HLS Proxy] Réponse inattendue (pas un manifest HLS valide), taille=${text.length}`);
+            return new NextResponse("Jellyfin n'a pas retourné un manifest HLS valide", { status: 502 });
+          }
           return new NextResponse(rewriteM3u8(text, req), {
             headers: {
               "Content-Type": "application/vnd.apple.mpegurl",
@@ -150,24 +128,26 @@ export async function GET(req: NextRequest) {
           });
         }
 
+        // Segments .ts ou tout contenu binaire → stream direct
         return new NextResponse(upstream.body, {
-          headers: { "Content-Type": contentType, "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" },
+          headers: { "Content-Type": contentType || "video/mp2t", "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" },
         });
 
       } catch (e: any) {
         clearTimeout(timer);
         lastError = e;
+        console.error(`[HLS Proxy] Tentative ${attempt + 1} échouée:`, e.message);
         if (attempt === 2) break;
       }
     }
 
     const isTimeout = lastError?.name === "AbortError";
     return new NextResponse(
-      isTimeout ? "Timeout Jellyfin" : `Erreur réseau: ${lastError?.message}`,
+      isTimeout ? "Timeout Jellyfin (45s)" : `Erreur réseau: ${lastError?.message}`,
       { status: isTimeout ? 504 : 502 }
     );
   } catch (e: any) {
-    console.error("[HLS Proxy] Erreur:", e.message);
+    console.error("[HLS Proxy] Erreur inattendue:", e.message);
     return new NextResponse(`Erreur: ${e.message}`, { status: 500 });
   }
 }
