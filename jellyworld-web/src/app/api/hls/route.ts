@@ -86,7 +86,6 @@ export async function GET(req: NextRequest) {
     let dedupeKey: string | null = null;
 
     if (proxyUrl) {
-      // ✅ FIX : décodage + reconstruction propre pour les URLs avec tirets GUID
       const decoded = decodeURIComponent(proxyUrl);
       if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
         targetUrl = decoded;
@@ -109,8 +108,6 @@ export async function GET(req: NextRequest) {
       dedupeKey = `${session.userId}:${itemId}:${source.Id}:${audioIdx}:${subIdx}:${startTicks}`;
 
       if (source.TranscodingUrl) {
-        // ✅ Jellyfin a déjà calculé l'URL complète — on l'utilise telle quelle
-        // Cette URL contient le bon PlaySessionId généré par Jellyfin lui-même
         targetUrl = source.TranscodingUrl.startsWith("http")
           ? source.TranscodingUrl
           : `${INTERNAL}${source.TranscodingUrl}`;
@@ -137,9 +134,14 @@ export async function GET(req: NextRequest) {
     if (dedupeKey && inFlightRequests.has(dedupeKey)) {
       try {
         const result = await inFlightRequests.get(dedupeKey)!;
+        // ✅ FIX : on passe explicitement targetUrl ici aussi (capturé par closure)
         return buildResponse(result, req, targetUrl);
       } catch {}
     }
+
+    // ✅ FIX PRINCIPAL : on capture targetUrl dans une constante locale AVANT
+    // la closure async, pour être certain qu'elle est bien fixée au bon moment
+    const capturedUrl = targetUrl;
 
     const fetchPromise = (async () => {
       const controller = new AbortController();
@@ -147,7 +149,7 @@ export async function GET(req: NextRequest) {
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const upstream = await fetch(targetUrl, { headers, cache: "no-store", signal: controller.signal });
+        const upstream = await fetch(capturedUrl, { headers, cache: "no-store", signal: controller.signal });
         clearTimeout(timer);
 
         if (!upstream.ok) {
@@ -160,13 +162,16 @@ export async function GET(req: NextRequest) {
         const contentLength = parseInt(upstream.headers.get("content-length") ?? "0");
         const looksLikeRawFile = contentLength > 1_000_000;
 
-        if (!looksLikeRawFile && (contentType.includes("mpegurl") || targetUrl.includes(".m3u8"))) {
+        if (!looksLikeRawFile && (contentType.includes("mpegurl") || capturedUrl.includes(".m3u8"))) {
           const text = await upstream.text();
           if (!text.startsWith("#EXTM3U")) {
             console.error(`[HLS Proxy] Pas un manifest valide:`, text.substring(0, 200));
             return { status: 502, body: "Manifest HLS invalide", contentType: "text/plain" };
           }
-          return { status: 200, body: text, contentType: "application/vnd.apple.mpegurl" };
+          // ✅ DEBUG : log le manifest brut ET l'URL source utilisée pour le réécrire
+          console.log(`[HLS Proxy] Manifest brut depuis ${capturedUrl.substring(0, 100)}:`);
+          console.log(text.substring(0, 500));
+          return { status: 200, body: text, contentType: "application/vnd.apple.mpegurl", sourceUrl: capturedUrl };
         }
 
         return { status: 200, body: upstream.body, contentType: contentType || "video/mp2t" };
@@ -185,7 +190,7 @@ export async function GET(req: NextRequest) {
 
     try {
       const result = await fetchPromise;
-      return buildResponse(result, req, targetUrl);
+      return buildResponse(result, req, result.sourceUrl ?? capturedUrl);
     } catch (e: any) {
       console.error(`[HLS Proxy] Échec:`, e.message);
       const isTimeout = e.name === "AbortError";
@@ -206,7 +211,9 @@ function buildResponse(result: any, req: NextRequest, sourceUrl: string): NextRe
     return new NextResponse(result.body as string, { status: result.status });
   }
   if (result.contentType === "application/vnd.apple.mpegurl") {
-    return new NextResponse(rewriteM3u8(result.body as string, req, sourceUrl), {
+    const rewritten = rewriteM3u8(result.body as string, req, sourceUrl);
+    console.log(`[HLS Proxy] Manifest réécrit (premières lignes):`, rewritten.substring(0, 400));
+    return new NextResponse(rewritten, {
       headers: { "Content-Type": result.contentType, "Cache-Control": "no-cache, no-store", "Access-Control-Allow-Origin": "*" },
     });
   }
@@ -215,17 +222,17 @@ function buildResponse(result: any, req: NextRequest, sourceUrl: string): NextRe
   });
 }
 
-// ✅ FIX MAJEUR : utilise sourceUrl (l'URL réelle qu'on vient d'appeler) comme base
-// pour résoudre les URLs relatives, au lieu de toujours utiliser INTERNAL.
-// Jellyfin peut référencer des sous-chemins relatifs au manifest lui-même.
 function rewriteM3u8(content: string, req: NextRequest, sourceUrl: string): string {
   const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
   let sourceBase: URL;
   try {
     sourceBase = new URL(sourceUrl);
-  } catch {
+  } catch (e) {
+    console.error(`[HLS Proxy] sourceUrl invalide: "${sourceUrl}"`, e);
     sourceBase = new URL(INTERNAL);
   }
+
+  console.log(`[HLS Proxy] rewriteM3u8 — sourceBase.pathname="${sourceBase.pathname}"`);
 
   return content.split("\n").map(line => {
     const t = line.trim();
@@ -235,12 +242,10 @@ function rewriteM3u8(content: string, req: NextRequest, sourceUrl: string): stri
     if (t.startsWith("http://") || t.startsWith("https://")) {
       fullUrl = t;
     } else if (t.startsWith("/")) {
-      // Chemin absolu — utilise le host de Jellyfin
       fullUrl = `${sourceBase.protocol}//${sourceBase.host}${t}`;
     } else {
-      // ✅ Chemin relatif au manifest (cas le plus courant pour les segments .ts)
-      // Ex: manifest à /videos/XXX/main.m3u8, segment "stream0.ts" → /videos/XXX/stream0.ts
-      const basePath = sourceBase.pathname.substring(0, sourceBase.pathname.lastIndexOf("/") + 1);
+      const lastSlash = sourceBase.pathname.lastIndexOf("/");
+      const basePath = lastSlash >= 0 ? sourceBase.pathname.substring(0, lastSlash + 1) : "/";
       fullUrl = `${sourceBase.protocol}//${sourceBase.host}${basePath}${t}`;
     }
 
