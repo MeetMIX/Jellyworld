@@ -20,6 +20,27 @@ async function getMediaSourceInfo(itemId: string, versionId: string, userId: str
   } catch { return null; }
 }
 
+// ✅ CRUCIAL : un PlaySessionId STABLE par session de lecture (pas un nouveau à chaque retry/appel)
+// Stocké en mémoire côté serveur, indexé par itemId+userId+audioIdx+subIdx
+// → Jellyfin réutilise le job de transcodage existant au lieu d'en relancer un nouveau
+const sessionIds = new Map<string, string>();
+function getStablePlaySessionId(userId: string, itemId: string, audioIdx: string, subIdx: string): string {
+  const key = `${userId}:${itemId}:${audioIdx}:${subIdx}`;
+  let id = sessionIds.get(key);
+  if (!id) {
+    id = `jw-${userId}-${itemId}-${Date.now()}`;
+    sessionIds.set(key, id);
+    // Nettoyage auto après 5 minutes pour éviter les fuites mémoire
+    setTimeout(() => sessionIds.delete(key), 5 * 60 * 1000);
+  }
+  return id;
+}
+
+// ✅ Empêche plusieurs requêtes concurrentes identiques de partir en parallèle.
+// Si une requête pour le même stream est déjà en vol, on attend son résultat
+// au lieu d'en lancer une deuxième.
+const inFlightRequests = new Map<string, Promise<{ status: number; body: string | ReadableStream | null; contentType: string }>>();
+
 export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return new NextResponse("Non authentifié", { status: 401 });
@@ -40,7 +61,7 @@ export async function GET(req: NextRequest) {
 
   try {
     let targetUrl: string;
-    let isHeavyTranscode = false;
+    let dedupeKey: string | null = null;
 
     if (proxyUrl) {
       const decoded = decodeURIComponent(proxyUrl);
@@ -54,16 +75,18 @@ export async function GET(req: NextRequest) {
       const videoCodec = (videoStream?.Codec ?? "").toLowerCase();
       const audioCodec = (audioStream?.Codec ?? "").toLowerCase();
       const videoHeight = videoStream?.Height ?? 0;
-      const isHDR = videoStream?.VideoRange === "HDR" || /dv|dolby\s*vision|hdr/i.test(mediaSource?.Name ?? "");
+      const isHDR = videoStream?.VideoRange === "HDR";
       const canDirectPlay =
         NATIVE_VIDEO_CODECS.includes(videoCodec) &&
         NATIVE_AUDIO_CODECS.includes(audioCodec) &&
         parseInt(subIdx) < 0;
+      const isHeavyTranscode = !canDirectPlay && (videoHeight >= 2000 || isHDR);
 
-      // ✅ Transcodage 4K HEVC/HDR = très lourd CPU → on cible 1080p pour rester fluide
-      isHeavyTranscode = !canDirectPlay && (videoHeight >= 2000 || isHDR);
+      console.log(`[HLS Proxy] Codec=${videoCodec}/${audioCodec} ${videoHeight}p HDR=${isHDR} → DirectPlay=${canDirectPlay} Heavy=${isHeavyTranscode}`);
 
-      console.log(`[HLS Proxy] Codec=${videoCodec}/${audioCodec} ${videoHeight}p HDR=${isHDR} → DirectPlay=${canDirectPlay} HeavyTranscode=${isHeavyTranscode}`);
+      // ✅ Clé de dédoublonnage : même fichier + mêmes streams = même job
+      dedupeKey = `${session.userId}:${itemId}:${vid}:${audioIdx}:${subIdx}:${startTicks}`;
+      const playSessionId = getStablePlaySessionId(session.userId, itemId, audioIdx, subIdx);
 
       const p = new URLSearchParams({
         api_key: session.token,
@@ -76,20 +99,17 @@ export async function GET(req: NextRequest) {
         ...(parseInt(audioIdx) >= 0 ? { AudioStreamIndex: audioIdx } : {}),
         ...(parseInt(subIdx) >= 0 ? { SubtitleStreamIndex: subIdx, SubtitleMethod: "Encode" } : {}),
         ...(parseInt(startTicks) > 0 ? { StartTimeTicks: startTicks } : {}),
-        PlaySessionId: `jw-${session.userId}-${Date.now()}`,
+        PlaySessionId: playSessionId, // ✅ STABLE, pas Date.now() à chaque appel
       });
 
       if (canDirectPlay) {
         p.set("VideoCodec", "copy");
       } else if (isHeavyTranscode) {
-        // ✅ Réduit à 1080p — divise la charge CPU par ~4 vs garder en 4K
         p.set("VideoCodec", "h264");
         p.set("MaxWidth", "1920");
         p.set("MaxHeight", "1080");
         p.set("VideoBitRate", "5000000");
         p.set("MaxVideoBitDepth", "8");
-        // preset rapide pour ffmpeg = moins de qualité d'encodage mais bien plus rapide
-        p.set("EncoderPreset", "veryfast");
       } else {
         p.set("VideoCodec", "h264");
         p.set("VideoBitRate", "6000000");
@@ -103,13 +123,21 @@ export async function GET(req: NextRequest) {
 
     console.log(`[HLS Proxy] → ${targetUrl.substring(0, 160)}...`);
 
-    let lastError: Error | null = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+    // ✅ Si une requête identique est déjà en vol, on attend SON résultat
+    // au lieu de relancer un nouveau fetch (et donc un nouveau ffmpeg)
+    if (dedupeKey && inFlightRequests.has(dedupeKey)) {
+      console.log(`[HLS Proxy] Requête déjà en vol pour ${dedupeKey}, attente du résultat existant...`);
+      try {
+        const result = await inFlightRequests.get(dedupeKey)!;
+        return buildResponse(result, req);
+      } catch {
+        // Le résultat en vol a échoué, on continue avec une nouvelle tentative
+      }
+    }
 
+    const fetchPromise = (async () => {
       const controller = new AbortController();
-      // ✅ Timeout étendu pour les gros transcodages 4K/HDR (jusqu'à 90s)
-      const timeoutMs = proxyUrl ? 20000 : (isHeavyTranscode ? 90000 : 45000);
+      const timeoutMs = proxyUrl ? 20000 : 60000;
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
@@ -119,8 +147,7 @@ export async function GET(req: NextRequest) {
         if (!upstream.ok) {
           const body = await upstream.text().catch(() => "");
           console.error(`[HLS Proxy] Jellyfin ${upstream.status}: ${body.substring(0, 150)}`);
-          if (upstream.status >= 500 && attempt < 1) { lastError = new Error(`HTTP ${upstream.status}`); continue; }
-          return new NextResponse(`Jellyfin ${upstream.status}`, { status: 502 });
+          return { status: 502, body: `Jellyfin ${upstream.status}`, contentType: "text/plain" };
         }
 
         const contentType = upstream.headers.get("content-type") ?? "";
@@ -130,37 +157,59 @@ export async function GET(req: NextRequest) {
         if (!looksLikeRawFile && (contentType.includes("mpegurl") || targetUrl.includes(".m3u8"))) {
           const text = await upstream.text();
           if (!text.startsWith("#EXTM3U")) {
-            console.error(`[HLS Proxy] Pas un manifest valide, taille=${text.length}`);
-            return new NextResponse("Manifest HLS invalide", { status: 502 });
+            return { status: 502, body: "Manifest HLS invalide", contentType: "text/plain" };
           }
-          return new NextResponse(rewriteM3u8(text, req), {
-            headers: { "Content-Type": "application/vnd.apple.mpegurl", "Cache-Control": "no-cache, no-store", "Access-Control-Allow-Origin": "*" },
-          });
+          return { status: 200, body: text, contentType: "application/vnd.apple.mpegurl" };
         }
 
-        return new NextResponse(upstream.body, {
-          headers: { "Content-Type": contentType || "video/mp2t", "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" },
-        });
-
+        return { status: 200, body: upstream.body, contentType: contentType || "video/mp2t" };
       } catch (e: any) {
         clearTimeout(timer);
-        lastError = e;
-        console.error(`[HLS Proxy] Tentative ${attempt + 1} échouée (timeout=${timeoutMs}ms):`, e.message);
-        if (attempt === 1) break;
+        throw e;
       }
+    })();
+
+    if (dedupeKey) {
+      inFlightRequests.set(dedupeKey, fetchPromise as any);
+      fetchPromise.finally(() => {
+        // Garde le résultat en cache 2s pour les requêtes qui arrivent juste après
+        setTimeout(() => inFlightRequests.delete(dedupeKey!), 2000);
+      });
     }
 
-    const isTimeout = lastError?.name === "AbortError";
-    return new NextResponse(
-      isTimeout
-        ? `Le transcodage prend trop de temps (>${isHeavyTranscode ? "90" : "45"}s). Le fichier 4K/HDR demande beaucoup de CPU.`
-        : `Erreur réseau: ${lastError?.message}`,
-      { status: isTimeout ? 504 : 502 }
-    );
+    try {
+      const result = await fetchPromise;
+      return buildResponse(result, req);
+    } catch (e: any) {
+      console.error(`[HLS Proxy] Échec:`, e.message);
+      const isTimeout = e.name === "AbortError";
+      return new NextResponse(
+        isTimeout ? "Timeout Jellyfin — transcodage trop lent" : `Erreur: ${e.message}`,
+        { status: isTimeout ? 504 : 502 }
+      );
+    }
+
   } catch (e: any) {
     console.error("[HLS Proxy] Erreur:", e.message);
     return new NextResponse(`Erreur: ${e.message}`, { status: 500 });
   }
+}
+
+function buildResponse(
+  result: { status: number; body: string | ReadableStream | null; contentType: string },
+  req: NextRequest
+): NextResponse {
+  if (result.status !== 200) {
+    return new NextResponse(result.body as string, { status: result.status });
+  }
+  if (result.contentType === "application/vnd.apple.mpegurl") {
+    return new NextResponse(rewriteM3u8(result.body as string, req), {
+      headers: { "Content-Type": result.contentType, "Cache-Control": "no-cache, no-store", "Access-Control-Allow-Origin": "*" },
+    });
+  }
+  return new NextResponse(result.body as ReadableStream, {
+    headers: { "Content-Type": result.contentType, "Cache-Control": "no-cache", "Access-Control-Allow-Origin": "*" },
+  });
 }
 
 function rewriteM3u8(content: string, req: NextRequest): string {
