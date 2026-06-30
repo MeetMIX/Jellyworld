@@ -14,10 +14,15 @@ async function getPlaybackInfo(itemId: string, userId: string, token: string, au
       MaxStreamingBitrate: 120000000,
       MaxStaticBitrate: 100000000,
       MusicStreamingTranscodingBitrate: 384000,
+      // Pas de "hevc" ici : la plupart des navigateurs ne le décodent pas nativement.
+      // Le déclarer en DirectPlay fait croire à Jellyfin qu'il peut envoyer le flux
+      // HEVC tel quel -> hls.js rejette le manifest (manifestIncompatibleCodecsError).
+      // Sans hevc dans la liste, Jellyfin transcode automatiquement en H264 (cf.
+      // TranscodingProfiles plus bas), qui lui est lisible partout.
       DirectPlayProfiles: [
         { Container: "webm", Type: "Video", VideoCodec: "vp8,vp9,av1", AudioCodec: "vorbis,opus" },
-        { Container: "mp4,m4v", Type: "Video", VideoCodec: "h264,vp9,av1,hevc", AudioCodec: "aac,mp3,opus,flac,vorbis" },
-        { Container: "mkv", Type: "Video", VideoCodec: "h264,vp9,av1,hevc", AudioCodec: "aac,mp3,opus,flac,vorbis,ac3,eac3" },
+        { Container: "mp4,m4v", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus,flac,vorbis" },
+        { Container: "mkv", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus,flac,vorbis,ac3,eac3" },
       ],
       TranscodingProfiles: [
         {
