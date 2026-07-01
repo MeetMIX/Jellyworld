@@ -18,11 +18,12 @@ export async function POST(req: NextRequest) {
   };
 
   try {
-    // Endpoint officiel Jellyfin pour fusionner des versions
+    // Endpoint officiel Jellyfin pour fusionner des versions — POST, pas DELETE
+    // (c'était le bug à l'origine du 405 "Method Not Allowed").
     const ids = itemIds.join(",");
     const res = await fetch(
       `${INTERNAL}/Videos/MergeVersions?Ids=${ids}`,
-      { method: "DELETE", headers }
+      { method: "POST", headers }
     );
 
     if (!res.ok) {
@@ -48,13 +49,19 @@ export async function DELETE(req: NextRequest) {
   const headers = { Authorization: `MediaBrowser Token="${session.token}"` };
 
   try {
-    // Jellyfin n'a pas d'API officielle pour séparer, mais on peut
-    // rafraîchir les métadonnées pour réinitialiser les versions
+    // Endpoint officiel Jellyfin pour séparer des versions groupées.
     const res = await fetch(
-      `${INTERNAL}/Items/${itemId}/Refresh?MetadataRefreshMode=FullRefresh&ReplaceAllMetadata=false`,
-      { method: "POST", headers }
+      `${INTERNAL}/Videos/${itemId}/AlternateSources`,
+      { method: "DELETE", headers }
     );
-    return NextResponse.json({ ok: res.ok });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return NextResponse.json({
+        error: `Jellyfin a refusé la séparation (${res.status})`,
+        detail: body.slice(0, 200),
+      }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

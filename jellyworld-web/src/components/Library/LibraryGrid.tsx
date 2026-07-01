@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import MergeToolbar from "./MergeToolbar";
+import SafeImage from "@/components/SafeImage";
 
 interface GridItem {
   Id: string; Name: string; Type: string;
@@ -103,14 +104,14 @@ export default function LibraryGrid({ items, libraryId }: { items: GridItem[]; l
                 }}>
                   {selectionMode ? (
                     <div style={{ aspectRatio: "2/3" }}>
-                      <img src={item.posterUrl} alt={item.Name}
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} loading="lazy" />
+                      <SafeImage src={item.posterUrl} alt={item.Name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     </div>
                   ) : (
                     <Link href={`/item/${item.Id}`} style={{ display: "block" }}>
                       <div style={{ aspectRatio: "2/3", position: "relative" }}>
-                        <img src={item.posterUrl} alt={item.Name}
-                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} loading="lazy" />
+                        <SafeImage src={item.posterUrl} alt={item.Name}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                         {item.UserData?.Played && (
                           <div style={{ position: "absolute", top: 6, right: 6, width: 20, height: 20, borderRadius: "50%", background: "rgba(34,197,94,0.9)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>

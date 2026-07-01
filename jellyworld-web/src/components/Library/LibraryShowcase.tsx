@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SafeImage from "@/components/SafeImage";
 
 interface ShowcaseItem { Id: string; Name: string; imageUrl: string; }
 interface ContinueItem {
@@ -88,7 +89,7 @@ export default function LibraryShowcase({ items, continueWatching }: {
               cursor: "pointer", background: "none",
             }}
           >
-            <img src={continueWatching[0].backdropUrl || continueWatching[0].posterUrl} alt=""
+            <SafeImage src={continueWatching[0].backdropUrl || continueWatching[0].posterUrl} alt=""
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             <div style={{
               position: "absolute", inset: 0,
@@ -121,7 +122,7 @@ export default function LibraryShowcase({ items, continueWatching }: {
             border: "1px solid var(--jw-border)",
             textDecoration: "none",
           }}>
-            <img src={lib.imageUrl} alt={lib.Name}
+            <SafeImage src={lib.imageUrl} alt={lib.Name}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             <div style={{
               position: "absolute", inset: 0,
@@ -172,7 +173,7 @@ export default function LibraryShowcase({ items, continueWatching }: {
                       borderRadius: "var(--jw-r-card)", overflow: "hidden",
                       background: "var(--jw-card)", border: "1px solid var(--jw-border-subtle)",
                     }}>
-                      <img src={item.posterUrl} alt={item.Name} loading="lazy"
+                      <SafeImage src={item.posterUrl} alt={item.Name}
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "rgba(255,255,255,0.15)" }}>
                         <div style={{ height: "100%", width: `${pct}%`, background: "var(--jw-gradient)" }} />

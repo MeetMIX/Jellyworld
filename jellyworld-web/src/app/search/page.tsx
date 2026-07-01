@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getUserLibraries } from "@/lib/jellyfin";
 import NavBar from "@/components/NavBar/NavBar";
+import SafeImage from "@/components/SafeImage";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -101,7 +102,7 @@ export default async function SearchPage({
                       background: "var(--jw-card)",
                       transition: "border-color 0.2s, transform 0.2s",
                     }}>
-                      <img src={item.posterUrl} alt={item.Name}
+                      <SafeImage src={item.posterUrl} alt={item.Name}
                         style={{ width: "100%", aspectRatio: "2/3", objectFit: "cover", display: "block" }} />
                     </div>
                     <p style={{ fontSize: 12, fontWeight: 600, color: "var(--jw-text-1)", margin: "0 0 2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.Name}</p>
