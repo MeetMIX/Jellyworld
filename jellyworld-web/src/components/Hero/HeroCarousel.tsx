@@ -70,6 +70,15 @@ export default function HeroCarousel({ items, rotationSeconds = 15 }: HeroCarous
   const [current, setCurrent] = useState(0);
   const [transitioning, setTransitioning] = useState(false);
   const [gradientColors, setGradientColors] = useState<[string, string] | null>(null);
+  // null au premier rendu (SSR) puis rempli côté client uniquement, pour
+  // éviter un mismatch d'hydratation entre l'heure du serveur et celle du navigateur.
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const clock = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(clock);
+  }, []);
 
   const goTo = useCallback((index: number) => {
     if (index === current) return;
@@ -125,6 +134,26 @@ export default function HeroCarousel({ items, rotationSeconds = 15 }: HeroCarous
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, var(--jw-bg) 0%, rgba(7,6,11,0.15) 50%, transparent 100%)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, var(--jw-bg) 0%, rgba(7,6,11,0.5) 45%, transparent 70%)" }} />
       </div>
+
+      {/* Horloge — widget "verre givré", indépendant de la rotation du hero */}
+      {now && (
+        <div style={{
+          position: "absolute", top: "calc(var(--jw-nav-height) + 20px)", right: 48, zIndex: 2,
+          padding: "10px 20px", borderRadius: "var(--jw-r-md)", textAlign: "right",
+          background: "rgba(255,255,255,0.08)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          backdropFilter: "blur(20px) saturate(160%)",
+          WebkitBackdropFilter: "blur(20px) saturate(160%)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.15), 0 8px 24px rgba(0,0,0,0.3)",
+        }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "0.02em", lineHeight: 1.1 }}>
+            {now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.72)", textTransform: "capitalize", marginTop: 3 }}>
+            {now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+          </div>
+        </div>
+      )}
 
       {/* Contenu */}
       <div style={{

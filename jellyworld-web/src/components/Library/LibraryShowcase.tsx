@@ -34,9 +34,16 @@ export default function LibraryShowcase({ items, continueWatching }: {
 }) {
   const [visible, setVisible] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [hiddenLibs, setHiddenLibs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const read = () => setVisible(localStorage.getItem(STORAGE_KEY) !== "0");
+    const read = () => {
+      setVisible(localStorage.getItem(STORAGE_KEY) !== "0");
+      try {
+        const raw = localStorage.getItem("jw_hidden_libraries");
+        setHiddenLibs(new Set(raw ? JSON.parse(raw) : []));
+      } catch { setHiddenLibs(new Set()); }
+    };
     read();
     window.addEventListener("jw:settings-changed", read);
     return () => window.removeEventListener("jw:settings-changed", read);
@@ -50,8 +57,9 @@ export default function LibraryShowcase({ items, continueWatching }: {
     return () => window.removeEventListener("keydown", onKey);
   }, [modalOpen]);
 
+  const visibleItems = items.filter(lib => !hiddenLibs.has(lib.Id));
   const hasContinueWatching = continueWatching.length > 0;
-  if (!visible || (items.length === 0 && !hasContinueWatching)) return null;
+  if (!visible || (visibleItems.length === 0 && !hasContinueWatching)) return null;
 
   return (
     <section>
@@ -59,10 +67,13 @@ export default function LibraryShowcase({ items, continueWatching }: {
         fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
         color: "var(--jw-text-2)", margin: "0 0 14px",
       }}>Bibliothèques</h2>
+      {/* Grille centrée (flex-wrap) plutôt qu'un grid étiré bord à bord : avec
+          une largeur de tuile fixe (~230px) et un conteneur à 4 colonnes, 8
+          vignettes se répartissent en 2 lignes égales (4+4) et 10-12 en 3
+          lignes, toujours centrées plutôt que collées à gauche. */}
       <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-        gap: 16,
+        display: "flex", flexWrap: "wrap", justifyContent: "center",
+        gap: 16, maxWidth: 1000, margin: "0 auto",
       }}>
         {hasContinueWatching && (
           <button
@@ -70,6 +81,7 @@ export default function LibraryShowcase({ items, continueWatching }: {
             className="jw-showcase-tile"
             style={{
               position: "relative", display: "block", aspectRatio: "16/9",
+              flex: "1 1 200px", maxWidth: 260,
               borderRadius: "var(--jw-r-md)", overflow: "hidden",
               border: "1px solid var(--jw-border)",
               padding: 0, margin: 0, font: "inherit", textAlign: "left",
@@ -94,16 +106,17 @@ export default function LibraryShowcase({ items, continueWatching }: {
             </div>
             <span style={{
               position: "absolute", left: 12, right: 12, bottom: 10,
-              fontSize: 13, fontWeight: 700, color: "#fff",
+              fontSize: 16, fontWeight: 800, color: "#fff",
               textShadow: "0 1px 4px rgba(0,0,0,0.6)",
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>Continuer à regarder</span>
           </button>
         )}
 
-        {items.map(lib => (
+        {visibleItems.map(lib => (
           <Link key={lib.Id} href={`/${lib.Id}`} className="jw-showcase-tile" style={{
             position: "relative", display: "block", aspectRatio: "16/9",
+            flex: "1 1 200px", maxWidth: 260,
             borderRadius: "var(--jw-r-md)", overflow: "hidden",
             border: "1px solid var(--jw-border)",
             textDecoration: "none",
@@ -116,7 +129,7 @@ export default function LibraryShowcase({ items, continueWatching }: {
             }} />
             <span style={{
               position: "absolute", left: 12, right: 12, bottom: 10,
-              fontSize: 13, fontWeight: 700, color: "#fff",
+              fontSize: 16, fontWeight: 800, color: "#fff",
               textShadow: "0 1px 4px rgba(0,0,0,0.6)",
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>{lib.Name}</span>

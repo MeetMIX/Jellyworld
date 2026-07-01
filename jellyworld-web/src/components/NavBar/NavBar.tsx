@@ -61,14 +61,19 @@ export default function NavBar({ libraries, session }: {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showNavLinks, setShowNavLinks] = useState(true);
   const [showThumbs, setShowThumbs] = useState(true);
+  const [hiddenLibs, setHiddenLibs] = useState<Set<string>>(new Set());
 
   useEffect(() => { if (searchOpen) inputRef.current?.focus(); }, [searchOpen]);
 
   // Réglages d'affichage — lus une fois au montage (localStorage n'existe pas
-  // côté serveur, d'où l'état par défaut à true pour matcher le rendu SSR).
+  // côté serveur, d'où l'état par défaut à true/vide pour matcher le rendu SSR).
   useEffect(() => {
     setShowNavLinks(localStorage.getItem("jw_show_nav_links") !== "0");
     setShowThumbs(localStorage.getItem("jw_show_library_thumbs") !== "0");
+    try {
+      const raw = localStorage.getItem("jw_hidden_libraries");
+      setHiddenLibs(new Set(raw ? JSON.parse(raw) : []));
+    } catch { setHiddenLibs(new Set()); }
   }, []);
 
   function updateSetting(key: string, setter: (v: boolean) => void, value: boolean) {
@@ -77,6 +82,18 @@ export default function NavBar({ libraries, session }: {
     // Prévient les autres composants (ex: LibraryShowcase) sans recharger la page.
     window.dispatchEvent(new Event("jw:settings-changed"));
   }
+
+  function toggleLibrary(id: string, checked: boolean) {
+    setHiddenLibs(prev => {
+      const next = new Set(prev);
+      if (checked) next.delete(id); else next.add(id);
+      localStorage.setItem("jw_hidden_libraries", JSON.stringify([...next]));
+      window.dispatchEvent(new Event("jw:settings-changed"));
+      return next;
+    });
+  }
+
+  const visibleLibraries = libraries.filter(l => !hiddenLibs.has(l.Id));
 
   // Particules de la barre lumineuse — générées une fois, trajectoires/durées
   // randomisées pour un mouvement perpétuel qui ne se synchronise jamais.
@@ -134,7 +151,7 @@ export default function NavBar({ libraries, session }: {
             display: "flex", alignItems: "center", gap: 20,
             flex: 1, flexWrap: "nowrap", // pas de scroll ni de retour à la ligne
           }}>
-            {libraries.map(lib => (
+            {visibleLibraries.map(lib => (
               <Link key={lib.Id} href={`/${lib.Id}`} className="jw-nav-link" style={{
                 fontSize: 13, fontWeight: pathname === `/${lib.Id}` ? 700 : 500,
                 color: pathname === `/${lib.Id}` ? "#fff" : "rgba(255,255,255,0.50)",
@@ -217,7 +234,8 @@ export default function NavBar({ libraries, session }: {
               <>
                 <div onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
                 <div style={{
-                  position: "absolute", top: 46, right: 0, zIndex: 99, width: 250,
+                  position: "absolute", top: 46, right: 0, zIndex: 99, width: 270,
+                  maxHeight: "70vh", overflowY: "auto",
                   background: "rgba(18,15,26,0.98)", border: "1px solid rgba(255,255,255,0.1)",
                   borderRadius: 12, padding: 14, backdropFilter: "blur(16px)",
                   boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
@@ -236,6 +254,22 @@ export default function NavBar({ libraries, session }: {
                       onChange={e => updateSetting("jw_show_library_thumbs", setShowThumbs, e.target.checked)} />
                     Vignettes bibliothèques sur l'accueil
                   </label>
+
+                  {libraries.length > 0 && (
+                    <>
+                      <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "2px 0" }} />
+                      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--jw-text-3)" }}>
+                        Bibliothèques à afficher
+                      </span>
+                      {libraries.map(lib => (
+                        <label key={lib.Id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#fff", cursor: "pointer" }}>
+                          <input type="checkbox" checked={!hiddenLibs.has(lib.Id)}
+                            onChange={e => toggleLibrary(lib.Id, e.target.checked)} />
+                          {lib.Name}
+                        </label>
+                      ))}
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -243,10 +277,15 @@ export default function NavBar({ libraries, session }: {
 
           {session ? (
             <button onClick={logout} title={`${session.username} — Déconnexion`} style={{
-              height: 38, borderRadius: 10, flexShrink: 0,
-              background: "linear-gradient(110deg, #6B2FD9 0%, #B83FA0 50%, #E03050 100%)",
-              border: "none",
-              display: "flex", alignItems: "center", gap: 8, padding: "0 14px",
+              height: 38, borderRadius: 10, flexShrink: 0, boxSizing: "border-box",
+              // Fond noir + contour dégradé (technique double-background
+              // padding-box/border-box, un vrai gradient sur `border` n'existe pas en CSS).
+              border: "4px solid transparent",
+              backgroundColor: "#000",
+              backgroundImage: "linear-gradient(#000,#000), linear-gradient(110deg, #6B2FD9 0%, #B83FA0 50%, #E03050 100%)",
+              backgroundOrigin: "border-box",
+              backgroundClip: "padding-box, border-box",
+              display: "flex", alignItems: "center", gap: 8, padding: "0 12px",
               fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer", whiteSpace: "nowrap",
             }}>
               <span style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>
@@ -286,7 +325,7 @@ export default function NavBar({ libraries, session }: {
           padding: "12px 32px 16px",
           display: "flex", flexDirection: "column", gap: 0,
         }}>
-          {libraries.map(lib => (
+          {visibleLibraries.map(lib => (
             <Link key={lib.Id} href={`/${lib.Id}`}
               onClick={() => setMenuOpen(false)}
               style={{

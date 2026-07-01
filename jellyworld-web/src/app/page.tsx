@@ -40,10 +40,11 @@ export default async function Home() {
     getContinueWatching(session.userId),
   ]);
 
-  // Si "Continuer à regarder" a du contenu, elle occupe la 1ère des 8 vignettes
-  // (7 bibliothèques + la tuile spéciale) ; sinon 8 bibliothèques normales.
+  // Si "Continuer à regarder" a du contenu, elle occupe la 1ère des 12 vignettes
+  // (11 bibliothèques + la tuile spéciale) ; sinon 12 bibliothèques normales.
+  // Le masquage par bibliothèque (réglages navbar) se fait ensuite côté client.
   const hasContinueWatching = continueWatching.length > 0;
-  const showcase = await getLibraryShowcase(navLibraries, session.userId, hasContinueWatching ? 7 : 8);
+  const showcase = await getLibraryShowcase(navLibraries, session.userId, hasContinueWatching ? 11 : 12);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
