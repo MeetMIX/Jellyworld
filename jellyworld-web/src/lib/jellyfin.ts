@@ -28,7 +28,7 @@ export interface JellyfinItem {
   PremiereDate?: string;
   ImageTags?: Record<string, string>; BackdropImageTags?: string[];
   UserData?: { PlayedPercentage?: number; IsFavorite?: boolean };
-  posterUrl: string; backdropUrl: string;
+  posterUrl: string; backdropUrl: string; logoUrl?: string;
 }
 export interface LibraryWithItems extends JellyfinLibrary { items: JellyfinItem[]; }
 export interface LibraryShowcaseItem { Id: string; Name: string; imageUrl: string; }
@@ -44,6 +44,12 @@ export function getPersonPhotoUrl(personId: string) {
 }
 export function getChapterImageUrl(itemId: string, index: number) {
   return `${JELLYFIN_PUBLIC}/Items/${itemId}/Images/Chapter?ImageIndex=${index}&api_key=${JELLYFIN_TOKEN}&fillWidth=320&quality=85`;
+}
+// Logo officiel du titre (image "Logo" fournie par TMDb/Fanart.tv via les
+// métadonnées Jellyfin) — n'existe pas pour tous les éléments, d'où la
+// vérification de ImageTags.Logo avant de construire l'URL dans enrich().
+export function getLogoUrl(id: string) {
+  return `${JELLYFIN_PUBLIC}/Items/${id}/Images/Logo?api_key=${JELLYFIN_TOKEN}&fillWidth=500&quality=90`;
 }
 export function formatRuntime(ticks?: number): string {
   if (!ticks) return "";
@@ -70,6 +76,7 @@ function enrich(item: any): JellyfinItem {
     ...item,
     posterUrl: getPosterUrl(item.Id),
     backdropUrl: getBackdropUrl(item.Id),
+    logoUrl: item.ImageTags?.Logo ? getLogoUrl(item.Id) : undefined,
   };
   if (enriched.People) {
     enriched.People = enriched.People.map((p: any) => ({ ...p, photoUrl: getPersonPhotoUrl(p.Id) }));

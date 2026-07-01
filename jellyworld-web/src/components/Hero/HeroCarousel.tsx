@@ -6,7 +6,7 @@ import Link from "next/link";
 interface HeroItem {
   Id: string; Name: string; Overview?: string;
   ProductionYear?: number; CommunityRating?: number;
-  backdropUrl: string; posterUrl: string;
+  backdropUrl: string; posterUrl: string; logoUrl?: string;
   Genres?: string[];
 }
 
@@ -121,7 +121,7 @@ export default function HeroCarousel({ items, rotationSeconds = 15 }: HeroCarous
         transition: "opacity 400ms ease",
       }}>
         <img src={item.backdropUrl} alt={item.Name}
-          style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.6) contrast(1.05)" }} />
+          style={{ width: "100%", height: "100%", objectFit: "cover", filter: "brightness(0.82) contrast(1.03)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, var(--jw-bg) 0%, rgba(7,6,11,0.15) 50%, transparent 100%)" }} />
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, var(--jw-bg) 0%, rgba(7,6,11,0.5) 45%, transparent 70%)" }} />
       </div>
@@ -151,11 +151,20 @@ export default function HeroCarousel({ items, rotationSeconds = 15 }: HeroCarous
             Sorti récemment
           </span>
 
-          <h1 style={{
-            fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900,
-            letterSpacing: "-0.03em", lineHeight: 1.0,
-            color: "#fff", margin: 0, textTransform: "uppercase",
-          }}>{item.Name}</h1>
+          {item.logoUrl ? (
+            <img src={item.logoUrl} alt={item.Name} style={{
+              maxWidth: "100%", width: "auto", maxHeight: 130,
+              objectFit: "contain", objectPosition: "left center",
+              filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.55))",
+              display: "block",
+            }} />
+          ) : (
+            <h1 style={{
+              fontSize: "clamp(32px, 5vw, 56px)", fontWeight: 900,
+              letterSpacing: "-0.03em", lineHeight: 1.0,
+              color: "#fff", margin: 0, textTransform: "uppercase",
+            }}>{item.Name}</h1>
+          )}
 
           {/* Meta */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--jw-text-2)" }}>
