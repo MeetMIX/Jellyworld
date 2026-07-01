@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { JellyfinLibrary } from "@/lib/jellyfin";
@@ -61,6 +61,15 @@ export default function NavBar({ libraries, session }: {
 
   useEffect(() => { if (searchOpen) inputRef.current?.focus(); }, [searchOpen]);
 
+  // Particules de la barre lumineuse — générées une fois, trajectoires/durées
+  // randomisées pour un mouvement perpétuel qui ne se synchronise jamais.
+  const glowParticles = useMemo(() => Array.from({ length: 4 }).map(() => ({
+    width: 70 + Math.random() * 110,
+    duration: 5 + Math.random() * 7,
+    delay: Math.random() * 6,
+    opacity: 0.55 + Math.random() * 0.45,
+  })), []);
+
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (query.trim()) {
@@ -84,7 +93,6 @@ export default function NavBar({ libraries, session }: {
         gap: 20,
         background: "rgba(7,6,11,0.96)",
         backdropFilter: "blur(20px)",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
       }}>
 
         {/* ══ LOGO — div parent sans contrainte de hauteur ══ */}
@@ -107,16 +115,13 @@ export default function NavBar({ libraries, session }: {
         {!searchOpen && (
           <nav style={{
             display: "flex", alignItems: "center", gap: 20,
-            flex: 1, overflow: "hidden", // pas de scroll, on tronque
+            flex: 1, flexWrap: "nowrap", // pas de scroll ni de retour à la ligne
           }}>
             {libraries.map(lib => (
-              <Link key={lib.Id} href={`/${lib.Id}`} style={{
+              <Link key={lib.Id} href={`/${lib.Id}`} className="jw-nav-link" style={{
                 fontSize: 13, fontWeight: pathname === `/${lib.Id}` ? 700 : 500,
-                whiteSpace: "nowrap",
                 color: pathname === `/${lib.Id}` ? "#fff" : "rgba(255,255,255,0.50)",
-                textDecoration: "none", transition: "color 0.2s",
-                overflow: "hidden", textOverflow: "ellipsis",
-                flexShrink: 1,
+                textDecoration: "none",
               }}>{lib.Name}</Link>
             ))}
           </nav>
@@ -192,6 +197,21 @@ export default function NavBar({ libraries, session }: {
         </div>
       </header>
 
+      {/* Barre lumineuse — trait fin sous la navbar avec particules animées */}
+      <div style={{
+        position: "fixed", top: 88, left: 0, right: 0, height: 2, zIndex: 99,
+        overflow: "hidden", background: "rgba(255,255,255,0.05)",
+      }}>
+        {glowParticles.map((p, i) => (
+          <span key={i} className="jw-glow-particle" style={{
+            width: p.width,
+            animationDuration: `${p.duration}s`,
+            animationDelay: `${p.delay}s`,
+            opacity: p.opacity,
+          }} />
+        ))}
+      </div>
+
       {/* Menu mobile déroulant */}
       {menuOpen && (
         <div style={{
@@ -228,6 +248,64 @@ export default function NavBar({ libraries, session }: {
         /* Très petit écran : cache le nom utilisateur */
         @media (max-width: 640px) {
           .jw-username { display: none !important; }
+        }
+
+        /* Barre lumineuse : particules en mouvement perpétuel et non-synchronisé */
+        .jw-glow-particle {
+          position: absolute;
+          top: 0; left: -15%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, #A06EF0, #E03050, transparent);
+          filter: blur(1.5px);
+          border-radius: 2px;
+          animation-name: jw-glow-travel;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+        }
+        @keyframes jw-glow-travel {
+          0%   { left: -15%; opacity: 0; }
+          10%  { opacity: 1; }
+          30%  { left: 22%; }
+          45%  { left: 13%; }
+          62%  { left: 58%; }
+          75%  { left: 42%; }
+          90%  { opacity: 1; }
+          100% { left: 112%; opacity: 0; }
+        }
+
+        /* Lien de bibliothèque : tronqué au repos, s'agrandit au survol pour
+           révéler le nom complet, avec un fond pour rester lisible. */
+        .jw-nav-link {
+          position: relative;
+          display: inline-block;
+          max-width: 130px;
+          min-width: 0;
+          flex-shrink: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          vertical-align: middle;
+          transform-origin: left center;
+          transition: max-width 0.32s cubic-bezier(.2,.8,.2,1),
+                      transform 0.32s cubic-bezier(.2,.8,.2,1),
+                      color 0.2s ease;
+        }
+        .jw-nav-link:hover {
+          max-width: 320px;
+          overflow: visible;
+          transform: scale(1.12);
+          color: #fff !important;
+          z-index: 5;
+        }
+        .jw-nav-link:hover::after {
+          content: "";
+          position: absolute;
+          inset: -7px -12px;
+          background: rgba(18,15,26,0.9);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 8px;
+          z-index: -1;
+          backdrop-filter: blur(10px);
         }
       `}</style>
     </>
