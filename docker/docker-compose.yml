@@ -65,6 +65,7 @@ services:
       - "3000:3000"
     volumes:
       - ../jellyworld-web:/app # Docker Ubuntu va lire le code de ce dossier
+      - hls-cache:/hls-cache   # à ajouter
     command: sh -c "npm install && npm run dev"
     networks:            # 👈 AJOUTE CES DEUX LIGNES
       - internal         # 👈 ICI
@@ -74,3 +75,5 @@ services:
       - JELLYFIN_API_KEY=0111461657f84b4384c8fe7afe4a50de
       - NEXT_PUBLIC_JELLYFIN_API_KEY=0111461657f84b4384c8fe7afe4a50de
     restart: unless-stopped
+volumes:
+  hls-cache: {}                # à ajouter en fin de fichier
