@@ -5,6 +5,7 @@ import {
   formatRuntime, ticksToTime
 } from "@/lib/jellyfin";
 import { getSession } from "@/lib/auth";
+import NavBar from "@/components/NavBar/NavBar";
 import PersonCard from "@/components/PersonCard/PersonCard";
 import WatchedButton from "@/components/WatchedButton/WatchedButton";
 import InlinePlayer from "@/components/Player/InlinePlayer";
@@ -43,15 +44,17 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [item, similar, versions] = await Promise.all([
+  const [item, similar, versions, navLibraries] = await Promise.all([
     getItemById(itemId, session.userId),
     getSimilarItems(itemId, session.userId),
     getVersions(itemId, session.userId, session.token),
+    getUserLibraries(session.userId),
   ]);
 
   if (!item) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--jw-bg)", padding: "80px 40px" }}>
+        <NavBar libraries={navLibraries} session={session} />
         <Link href="/" style={{ color: "var(--jw-purple)", fontSize: 12, fontWeight: 700 }}>← Accueil</Link>
         <p style={{ marginTop: 32, color: "var(--jw-text-3)" }}>Média introuvable.</p>
       </div>
@@ -81,6 +84,7 @@ export default async function ItemPage({ params }: { params: Promise<{ itemId: s
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
+      <NavBar libraries={navLibraries} session={session} />
       {/* Hero */}
       <section style={{ position: "relative", height: "62vh", minHeight: 360, overflow: "hidden" }}>
         <img src={item.backdropUrl} alt={item.Name}

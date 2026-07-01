@@ -66,7 +66,7 @@ export default function HeroCarousel({ items, rotationSeconds = 15 }: HeroCarous
         position: "relative", zIndex: 1,
         height: "100%",
         display: "flex", alignItems: "flex-end",
-        padding: "calc(72px + 24px) 48px 52px",
+        padding: "calc(var(--jw-nav-height) + 24px) 48px 52px",
         opacity: transitioning ? 0 : 1,
         transform: transitioning ? "translateY(8px)" : "translateY(0)",
         transition: "opacity 400ms ease, transform 400ms ease",

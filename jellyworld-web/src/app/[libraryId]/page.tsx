@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getUserLibraries, getFirstUserId } from "@/lib/jellyfin";
 import { getSession } from "@/lib/auth";
+import NavBar from "@/components/NavBar/NavBar";
 import SortBar from "@/components/Library/SortBar";
 import LibraryGrid from "@/components/Library/LibraryGrid";
 
@@ -76,7 +77,8 @@ export default async function LibraryPage({
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
-      <main style={{ padding: "32px 40px 80px" }}>
+      <NavBar libraries={libraries} session={session} />
+      <main style={{ padding: "calc(var(--jw-nav-height) + 32px) 40px 80px" }}>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 22, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>
             {currentLib?.Name ?? "Collection"}

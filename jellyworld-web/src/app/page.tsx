@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { getHomeData } from "@/lib/jellyfin";
+import { getHomeData, getUserLibraries } from "@/lib/jellyfin";
 import { getSession } from "@/lib/auth";
+import NavBar from "@/components/NavBar/NavBar";
 import HeroCarousel from "@/components/Hero/HeroCarousel";
 import RailSection from "@/components/Rail/RailSection";
 import ContinueWatching from "@/components/ContinueWatching";
@@ -35,17 +36,18 @@ export default async function Home() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [{ libraries, activeLibraries, recentItems }, continueWatching] = await Promise.all([
+  const [{ libraries: navLibraries, activeLibraries, recentItems }, continueWatching] = await Promise.all([
     getHomeData(),
     getContinueWatching(session.userId),
   ]);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
+      <NavBar libraries={navLibraries} session={session} />
       {recentItems.length > 0 && <HeroCarousel items={recentItems} rotationSeconds={HERO_ROTATION_SECONDS} />}
       <main style={{
         padding: "0 40px 80px",
-        marginTop: recentItems.length > 0 ? "-48px" : "32px",
+        marginTop: recentItems.length > 0 ? "-48px" : "calc(var(--jw-nav-height) + 32px)",
         position: "relative", zIndex: 10,
         display: "flex", flexDirection: "column", gap: 40,
       }}>
