@@ -145,9 +145,26 @@ export async function GET(req: NextRequest) {
       dedupeKey = `${session.userId}:${itemId}:${source.Id}:${audioIdx}:${subIdx}:${startTicks}`;
 
       if (source.TranscodingUrl) {
-        targetUrl = source.TranscodingUrl.startsWith("http")
+        const rawTcUrl = source.TranscodingUrl.startsWith("http")
           ? source.TranscodingUrl
           : `${INTERNAL}${source.TranscodingUrl}`;
+
+        // Jellyfin est censé honorer AudioStreamIndex/SubtitleStreamIndex envoyés
+        // dans PlaybackInfo, mais en pratique la TranscodingUrl qu'il retourne peut
+        // contenir ses propres indices par défaut au lieu de ceux demandés (observé
+        // en prod : audioIdx=4/subIdx=6 demandés côté client, mais
+        // AudioStreamIndex=1&SubtitleStreamIndex=5 dans l'URL renvoyée -> le film
+        // continuait à jouer la piste par défaut malgré la sélection dans l'UI).
+        // On réécrit donc ces paramètres nous-mêmes avant utilisation.
+        const tcUrl = new URL(rawTcUrl);
+        if (audioIdx >= 0) tcUrl.searchParams.set("AudioStreamIndex", String(audioIdx));
+        if (subIdx >= 0) {
+          tcUrl.searchParams.set("SubtitleStreamIndex", String(subIdx));
+        } else {
+          tcUrl.searchParams.delete("SubtitleStreamIndex");
+        }
+        targetUrl = tcUrl.toString();
+        console.log(`[HLS Proxy] TranscodingUrl corrigée -> AudioStreamIndex=${tcUrl.searchParams.get("AudioStreamIndex")} SubtitleStreamIndex=${tcUrl.searchParams.get("SubtitleStreamIndex")}`);
       } else if (source.SupportsDirectStream) {
         const p = new URLSearchParams({
           api_key: session.token,
