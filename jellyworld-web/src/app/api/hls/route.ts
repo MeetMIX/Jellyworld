@@ -1,7 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { promises as fs } from "fs";
+import path from "path";
+import crypto from "crypto";
 
 const INTERNAL = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
+
+// ─── Cache disque pour les segments transcodés (.ts) et sous-titres (.vtt) ───
+// But : atténuer les temps d'attente quand Jellyfin transcode un média lourd
+// (HEVC 10bit, gros bitrate...). Le cache ne peut pas accélérer la toute
+// première lecture d'un segment jamais transcodé (ffmpeg doit tourner), mais
+// il évite de re-solliciter Jellyfin pour tout ce qui a déjà été produit une
+// fois : un second visionnage du même film avec les mêmes réglages (piste
+// audio/sous-titres/qualité), une avance/retour dans le player, ou une
+// re-tentative de hls.js après une erreur réseau.
+//
+// IMPORTANT : jellyworld-web tourne en mode dev avec tout /app bind-mounté
+// sur le dossier du repo (`../jellyworld-web:/app` dans docker-compose.yml)
+// -> écrire le cache sous /app l'enverrait directement dans le dossier
+// synchronisé/suivi par Git. Le chemin par défaut est donc HORS /app, dans
+// la couche d'écriture propre au conteneur (survit à `docker restart`,
+// c'est-à-dire au workflow habituel git pull + restart, mais pas à une
+// recréation du conteneur). Pour le faire survivre aussi aux recréations,
+// ajouter un volume nommé dans docker-compose.yml, ex:
+//   services.jellyworld-web.volumes: - hls-cache:/hls-cache
+//   volumes: { hls-cache: {} }
+const CACHE_DIR = process.env.HLS_CACHE_DIR || "/hls-cache";
+const CACHE_MAX_BYTES = parseInt(process.env.HLS_CACHE_MAX_MB ?? "2048", 10) * 1024 * 1024;
+const CACHEABLE_EXT = [".ts", ".vtt"];
+
+// Paramètres qui identifient le CONTENU réel d'un segment (à conserver dans
+// la clé de cache) — à l'exclusion des paramètres volatils propres à chaque
+// session de lecture (ApiKey, DeviceId, PlaySessionId, Tag), qui changent à
+// chaque nouvelle lecture même pour un film/réglages identiques. Les ignorer
+// permet au cache de servir un second visionnage, pas seulement des retries
+// dans la même session.
+const CACHE_KEY_PARAMS = [
+  "AudioStreamIndex", "SubtitleStreamIndex", "VideoBitrate", "AudioBitrate",
+  "VideoCodec", "AudioCodec", "StartPositionTicks", "EndPositionTicks",
+];
+
+function cacheKeyFor(url: string): string | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  const ext = path.extname(u.pathname);
+  if (!CACHEABLE_EXT.includes(ext)) return null;
+  const kept = CACHE_KEY_PARAMS.map(k => `${k}=${u.searchParams.get(k) ?? ""}`).join("&");
+  const raw = `${u.pathname}?${kept}`;
+  return crypto.createHash("sha1").update(raw).digest("hex") + ext;
+}
+
+async function readHlsCache(key: string): Promise<{ body: Buffer; contentType: string } | null> {
+  try {
+    const dataPath = path.join(CACHE_DIR, `${key}.bin`);
+    const metaPath = path.join(CACHE_DIR, `${key}.meta`);
+    const [body, metaRaw] = await Promise.all([fs.readFile(dataPath), fs.readFile(metaPath, "utf8")]);
+    const meta = JSON.parse(metaRaw);
+    fs.utimes(dataPath, new Date(), new Date()).catch(() => {}); // touch pour LRU
+    return { body, contentType: meta.contentType };
+  } catch { return null; }
+}
+
+async function writeHlsCache(key: string, body: Buffer, contentType: string) {
+  try {
+    await fs.mkdir(CACHE_DIR, { recursive: true });
+    await Promise.all([
+      fs.writeFile(path.join(CACHE_DIR, `${key}.bin`), body),
+      fs.writeFile(path.join(CACHE_DIR, `${key}.meta`), JSON.stringify({ contentType, cachedAt: Date.now() })),
+    ]);
+    // Nettoyage best-effort, pas à chaque écriture (juste 1 fois sur 20 en
+    // moyenne) pour éviter de scanner le dossier à chaque segment.
+    if (Math.random() < 0.05) cleanupHlsCache().catch(() => {});
+  } catch (e) {
+    console.error("[HLS Cache] write error:", e);
+  }
+}
+
+async function cleanupHlsCache() {
+  const entries = await fs.readdir(CACHE_DIR).catch(() => [] as string[]);
+  const binFiles = entries.filter(f => f.endsWith(".bin"));
+  const stats = (await Promise.all(binFiles.map(async f => {
+    const p = path.join(CACHE_DIR, f);
+    const s = await fs.stat(p).catch(() => null);
+    return s ? { key: f.replace(/\.bin$/, ""), size: s.size, mtime: s.mtimeMs } : null;
+  }))).filter((s): s is { key: string; size: number; mtime: number } => !!s);
+
+  const total = stats.reduce((sum, s) => sum + s.size, 0);
+  if (total <= CACHE_MAX_BYTES) return;
+
+  // Éviction LRU : supprime les entrées les plus anciennes (par mtime, touché
+  // à chaque lecture cache) jusqu'à repasser sous le budget.
+  stats.sort((a, b) => a.mtime - b.mtime);
+  let freed = 0;
+  for (const s of stats) {
+    if (total - freed <= CACHE_MAX_BYTES) break;
+    await Promise.all([
+      fs.unlink(path.join(CACHE_DIR, `${s.key}.bin`)).catch(() => {}),
+      fs.unlink(path.join(CACHE_DIR, `${s.key}.meta`)).catch(() => {}),
+    ]);
+    freed += s.size;
+  }
+}
 
 async function getPlaybackInfo(itemId: string, userId: string, token: string, audioIdx: number, subIdx: number, startTicks: number) {
   const body = {
@@ -183,6 +282,18 @@ export async function GET(req: NextRequest) {
       return new NextResponse("Paramètres manquants", { status: 400, headers: CORS_HEADERS });
     }
 
+    // Cache disque : uniquement pour les segments/sous-titres binaires (.ts/.vtt),
+    // jamais pour les manifestes .m3u8 (dynamiques, doivent rester en direct).
+    const cacheKey = cacheKeyFor(targetUrl);
+    if (cacheKey) {
+      const cached = await readHlsCache(cacheKey);
+      if (cached) {
+        return new NextResponse(cached.body, {
+          headers: { "Content-Type": cached.contentType, "Cache-Control": "no-cache", "X-HLS-Cache": "HIT", ...CORS_HEADERS },
+        });
+      }
+    }
+
     if (dedupeKey && inFlightRequests.has(dedupeKey)) {
       try {
         const result = await inFlightRequests.get(dedupeKey)!;
@@ -200,7 +311,12 @@ export async function GET(req: NextRequest) {
       // segments binaires (.ts/.mp4, déjà prêts une fois la playlist renvoyée) gardent
       // le timeout court.
       const isPlaylistFetch = !proxyUrl || capturedUrl.includes(".m3u8");
-      const timeoutMs = isPlaylistFetch ? 60000 : 20000;
+      // 20s s'est révélé trop court pour un segment .ts qui nécessite un vrai
+      // transcodage vidéo (ex: source HEVC 10bit -> H264) plutôt qu'un simple
+      // remux/transcodage audio : logs prod montrant des 504 systématiques
+      // suivis d'un retry réussi quelques secondes plus tard (ffmpeg avait
+      // simplement besoin de plus de temps pour produire ce segment).
+      const timeoutMs = isPlaylistFetch ? 60000 : 45000;
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
@@ -229,7 +345,16 @@ export async function GET(req: NextRequest) {
           return { status: 200, body: text, contentType: "application/vnd.apple.mpegurl", sourceUrl: capturedUrl };
         }
 
-        return { status: 200, body: upstream.body, contentType: contentType || "video/mp2t" };
+        // Segment/sous-titre binaire : on bufférise (au lieu de streamer
+        // directement upstream.body) pour pouvoir l'écrire dans le cache
+        // disque avant de répondre. Les segments HLS font au plus quelques
+        // Mo — le coût en latence est négligeable face au gain sur les
+        // relectures.
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        const finalContentType = contentType || "video/mp2t";
+        const key = cacheKeyFor(capturedUrl);
+        if (key) writeHlsCache(key, buf, finalContentType).catch(() => {});
+        return { status: 200, body: buf, contentType: finalContentType };
       } catch (e: any) {
         clearTimeout(timer);
         throw e;
@@ -275,8 +400,9 @@ function buildResponse(result: any, req: NextRequest, sourceUrl: string): NextRe
       },
     });
   }
-  // ✅ Pour les segments .ts — CORS + headers explicites pour hls.js
-  return new NextResponse(result.body as ReadableStream, {
+  // ✅ Pour les segments .ts/.vtt (Buffer, bufférisé pour permettre la mise
+  // en cache disque) — CORS + headers explicites pour hls.js
+  return new NextResponse(result.body as Buffer, {
     headers: {
       "Content-Type": result.contentType,
       "Cache-Control": "no-cache",
