@@ -31,6 +31,7 @@ export interface JellyfinItem {
   posterUrl: string; backdropUrl: string;
 }
 export interface LibraryWithItems extends JellyfinLibrary { items: JellyfinItem[]; }
+export interface LibraryShowcaseItem { Id: string; Name: string; imageUrl: string; }
 
 export function getPosterUrl(id: string) {
   return `${JELLYFIN_PUBLIC}/Items/${id}/Images/Primary?api_key=${JELLYFIN_TOKEN}&fillWidth=300&quality=90`;
@@ -168,4 +169,26 @@ export async function getHomeData() {
     .map((lib, i) => ({ ...lib, items: results[i] }))
     .filter((lib) => lib.items.length > 0);
   return { libraries, activeLibraries, recentItems };
+}
+
+// Une vignette "mix" par bibliothèque (jusqu'à `max`), image piochée au
+// hasard côté serveur — revalidate:0 pour un tirage différent à chaque
+// visite de la page, comme demandé.
+export async function getLibraryShowcase(
+  libraries: JellyfinLibrary[], userId: string, max = 8
+): Promise<LibraryShowcaseItem[]> {
+  const targets = libraries.slice(0, max);
+  const results = await Promise.all(targets.map(async (lib) => {
+    const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
+      + `?ParentId=${lib.Id}&Recursive=true`
+      + `&IncludeItemTypes=Movie,Series,MusicVideo,Video`
+      + `&Filters=IsNotFolder&SortBy=Random&Limit=1`
+      + `&Fields=BackdropImageTags,ImageTags`;
+    const data = await jellyGet(url, 0);
+    const pick = data?.Items?.[0];
+    if (!pick) return null;
+    const imageUrl = pick.BackdropImageTags?.length ? getBackdropUrl(pick.Id) : getPosterUrl(pick.Id);
+    return { Id: lib.Id, Name: lib.Name, imageUrl };
+  }));
+  return results.filter((r): r is LibraryShowcaseItem => r !== null);
 }

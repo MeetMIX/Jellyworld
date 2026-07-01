@@ -15,19 +15,29 @@ async function searchItems(query: string, userId: string, token: string) {
   try {
     const url = `${INTERNAL}/Users/${userId}/Items`
       + `?SearchTerm=${encodeURIComponent(query)}`
-      + `&IncludeItemTypes=Movie,Series,MusicVideo`
+      // Élargi : Movie/Series/MusicVideo excluait épisodes, albums, musique,
+      // livres audio... "IncludeItemTypes" combiné à "Recursive" suffit à
+      // couvrir toute la bibliothèque sans avoir besoin d'un type par média.
+      + `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Audio,MusicAlbum,BoxSet,Video`
       + `&Recursive=true&Limit=40`
       + `&Fields=PrimaryImageAspectRatio,ImageTags,Overview,ProductionYear`;
     const res = await fetch(url, {
       headers: { Authorization: `MediaBrowser Token="${token}"` },
       cache: "no-store",
     });
+    if (!res.ok) {
+      console.error(`[Search] Jellyfin a répondu ${res.status} pour "${query}"`);
+      return [];
+    }
     const data = await res.json();
     return (data.Items ?? []).map((item: any) => ({
       ...item,
       posterUrl: `${PUBLIC}/Items/${item.Id}/Images/Primary?api_key=${API_KEY}&fillWidth=200&quality=85`,
     }));
-  } catch { return []; }
+  } catch (e) {
+    console.error(`[Search] erreur réseau pour "${query}":`, e);
+    return [];
+  }
 }
 
 export default async function SearchPage({

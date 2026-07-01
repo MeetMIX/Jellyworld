@@ -58,8 +58,25 @@ export default function NavBar({ libraries, session }: {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showNavLinks, setShowNavLinks] = useState(true);
+  const [showThumbs, setShowThumbs] = useState(true);
 
   useEffect(() => { if (searchOpen) inputRef.current?.focus(); }, [searchOpen]);
+
+  // Réglages d'affichage — lus une fois au montage (localStorage n'existe pas
+  // côté serveur, d'où l'état par défaut à true pour matcher le rendu SSR).
+  useEffect(() => {
+    setShowNavLinks(localStorage.getItem("jw_show_nav_links") !== "0");
+    setShowThumbs(localStorage.getItem("jw_show_library_thumbs") !== "0");
+  }, []);
+
+  function updateSetting(key: string, setter: (v: boolean) => void, value: boolean) {
+    setter(value);
+    localStorage.setItem(key, value ? "1" : "0");
+    // Prévient les autres composants (ex: LibraryShowcase) sans recharger la page.
+    window.dispatchEvent(new Event("jw:settings-changed"));
+  }
 
   // Particules de la barre lumineuse — générées une fois, trajectoires/durées
   // randomisées pour un mouvement perpétuel qui ne se synchronise jamais.
@@ -112,7 +129,7 @@ export default function NavBar({ libraries, session }: {
         )}
 
         {/* Nav desktop */}
-        {!searchOpen && (
+        {!searchOpen && showNavLinks && (
           <nav style={{
             display: "flex", alignItems: "center", gap: 20,
             flex: 1, flexWrap: "nowrap", // pas de scroll ni de retour à la ligne
@@ -126,6 +143,8 @@ export default function NavBar({ libraries, session }: {
             ))}
           </nav>
         )}
+        {/* Espaceur — garde les actions collées à droite quand les liens sont masqués */}
+        {!searchOpen && !showNavLinks && <div style={{ flex: 1 }} />}
 
         {/* Recherche inline */}
         {searchOpen && (
@@ -165,16 +184,62 @@ export default function NavBar({ libraries, session }: {
           </button>
 
           {/* Hamburger menu pour les bibliothèques sur petits écrans */}
-          <button onClick={() => setMenuOpen(!menuOpen)} style={{
-            width: 38, height: 38, borderRadius: 10, padding: 0,
-            background: menuOpen ? "rgba(107,47,217,0.2)" : "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.10)",
-            display: "none", // caché sur desktop, visible via @media dans globals
-            alignItems: "center", justifyContent: "center",
-            cursor: "pointer", color: "rgba(255,255,255,0.6)",
-          }} className="jw-hamburger">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
+          {showNavLinks && (
+            <button onClick={() => setMenuOpen(!menuOpen)} style={{
+              width: 38, height: 38, borderRadius: 10, padding: 0,
+              background: menuOpen ? "rgba(107,47,217,0.2)" : "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              display: "none", // caché sur desktop, visible via @media dans globals
+              alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "rgba(255,255,255,0.6)",
+            }} className="jw-hamburger">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+          )}
+
+          {/* Réglages d'affichage — liens navbar / vignettes bibliothèques */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setSettingsOpen(v => !v)} title="Réglages d'affichage" style={{
+              width: 38, height: 38, borderRadius: 10, padding: 0,
+              background: settingsOpen ? "rgba(107,47,217,0.2)" : "rgba(255,255,255,0.06)",
+              border: `1px solid ${settingsOpen ? "rgba(107,47,217,0.4)" : "rgba(255,255,255,0.10)"}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", color: "rgba(255,255,255,0.6)",
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/>
+                <line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+                <line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="2" fill="currentColor" stroke="none"/>
+              </svg>
+            </button>
+
+            {settingsOpen && (
+              <>
+                <div onClick={() => setSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
+                <div style={{
+                  position: "absolute", top: 46, right: 0, zIndex: 99, width: 250,
+                  background: "rgba(18,15,26,0.98)", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 12, padding: 14, backdropFilter: "blur(16px)",
+                  boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
+                  display: "flex", flexDirection: "column", gap: 12,
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--jw-text-3)" }}>
+                    Affichage
+                  </span>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#fff", cursor: "pointer" }}>
+                    <input type="checkbox" checked={showNavLinks}
+                      onChange={e => updateSetting("jw_show_nav_links", setShowNavLinks, e.target.checked)} />
+                    Liens des bibliothèques dans la barre
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#fff", cursor: "pointer" }}>
+                    <input type="checkbox" checked={showThumbs}
+                      onChange={e => updateSetting("jw_show_library_thumbs", setShowThumbs, e.target.checked)} />
+                    Vignettes bibliothèques sur l'accueil
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
 
           {session ? (
             <button onClick={logout} title={`${session.username} — Déconnexion`} style={{
@@ -213,7 +278,7 @@ export default function NavBar({ libraries, session }: {
       </div>
 
       {/* Menu mobile déroulant */}
-      {menuOpen && (
+      {menuOpen && showNavLinks && (
         <div style={{
           position: "fixed", top: 88, left: 0, right: 0, zIndex: 99,
           background: "rgba(7,6,11,0.98)",
