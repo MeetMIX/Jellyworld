@@ -106,7 +106,7 @@ export default function LibraryShowcase({ items, continueWatching }: {
             </div>
             <span style={{
               position: "absolute", left: 12, right: 12, bottom: 10,
-              fontSize: 16, fontWeight: 800, color: "#fff",
+              fontSize: 16, fontWeight: 800, color: "#fff", textAlign: "center",
               textShadow: "0 1px 4px rgba(0,0,0,0.6)",
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>Continuer à regarder</span>
@@ -129,7 +129,7 @@ export default function LibraryShowcase({ items, continueWatching }: {
             }} />
             <span style={{
               position: "absolute", left: 12, right: 12, bottom: 10,
-              fontSize: 16, fontWeight: 800, color: "#fff",
+              fontSize: 16, fontWeight: 800, color: "#fff", textAlign: "center",
               textShadow: "0 1px 4px rgba(0,0,0,0.6)",
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>{lib.Name}</span>

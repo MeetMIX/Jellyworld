@@ -186,9 +186,12 @@ export async function getLibraryShowcase(
 ): Promise<LibraryShowcaseItem[]> {
   const targets = libraries.slice(0, max);
   const results = await Promise.all(targets.map(async (lib) => {
+    // Élargi : Movie/Series/MusicVideo/Video excluait Episode et Audio, donc
+    // une bibliothèque Séries ou Musique (dont les items "de fond" sont des
+    // Episode/Audio une fois IsNotFolder appliqué) ne retournait jamais rien.
     const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
       + `?ParentId=${lib.Id}&Recursive=true`
-      + `&IncludeItemTypes=Movie,Series,MusicVideo,Video`
+      + `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video,Audio,MusicAlbum,Photo`
       + `&Filters=IsNotFolder&SortBy=Random&Limit=1`
       + `&Fields=BackdropImageTags,ImageTags`;
     const data = await jellyGet(url, 0);

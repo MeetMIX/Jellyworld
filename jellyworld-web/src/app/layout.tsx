@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "../styles/globals.css";
+import ClockWidget from "@/components/ClockWidget";
 
 const geist = Geist({ variable: "--font-sans", subsets: ["latin"] });
 
@@ -18,6 +19,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="fr" className={geist.variable}>
       <body style={{ margin: 0, padding: 0, background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
         {children}
+        <ClockWidget />
       </body>
     </html>
   );
