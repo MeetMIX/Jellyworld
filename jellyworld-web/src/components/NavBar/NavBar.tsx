@@ -76,21 +76,25 @@ export default function NavBar({ libraries, session }: {
     } catch { setHiddenLibs(new Set()); }
   }, []);
 
+  // Le dispatchEvent est différé (setTimeout 0) plutôt qu'appelé en synchrone :
+  // un composant tiers (LibraryShowcase) écoute cet évènement et fait son
+  // propre setState en réaction — si ça arrive pendant que React est encore
+  // en train de committer le rendu de NavBar, React log un warning "Cannot
+  // update a component while rendering a different component".
   function updateSetting(key: string, setter: (v: boolean) => void, value: boolean) {
     setter(value);
     localStorage.setItem(key, value ? "1" : "0");
-    // Prévient les autres composants (ex: LibraryShowcase) sans recharger la page.
-    window.dispatchEvent(new Event("jw:settings-changed"));
+    setTimeout(() => window.dispatchEvent(new Event("jw:settings-changed")), 0);
   }
 
   function toggleLibrary(id: string, checked: boolean) {
-    setHiddenLibs(prev => {
-      const next = new Set(prev);
-      if (checked) next.delete(id); else next.add(id);
-      localStorage.setItem("jw_hidden_libraries", JSON.stringify([...next]));
-      window.dispatchEvent(new Event("jw:settings-changed"));
-      return next;
-    });
+    // Calculé hors de l'updater setHiddenLibs — un updater React doit rester
+    // pur (pas d'effet de bord comme localStorage/dispatchEvent dedans).
+    const next = new Set(hiddenLibs);
+    if (checked) next.delete(id); else next.add(id);
+    setHiddenLibs(next);
+    localStorage.setItem("jw_hidden_libraries", JSON.stringify([...next]));
+    setTimeout(() => window.dispatchEvent(new Event("jw:settings-changed")), 0);
   }
 
   const visibleLibraries = libraries.filter(l => !hiddenLibs.has(l.Id));
