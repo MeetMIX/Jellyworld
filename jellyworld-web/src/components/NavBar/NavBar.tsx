@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { JellyfinLibrary } from "@/lib/jellyfin";
@@ -99,14 +99,26 @@ export default function NavBar({ libraries, session }: {
 
   const visibleLibraries = libraries.filter(l => !hiddenLibs.has(l.Id));
 
-  // Particules de la barre lumineuse — générées une fois, trajectoires/durées
-  // randomisées pour un mouvement perpétuel qui ne se synchronise jamais.
-  const glowParticles = useMemo(() => Array.from({ length: 4 }).map(() => ({
-    width: 70 + Math.random() * 110,
-    duration: 5 + Math.random() * 7,
-    delay: Math.random() * 6,
-    opacity: 0.55 + Math.random() * 0.45,
-  })), []);
+  // Particules de la barre lumineuse — trajectoires/durées randomisées pour un
+  // mouvement perpétuel qui ne se synchronise jamais. Générées côté client
+  // uniquement (useEffect, pas useMemo) : useMemo(() => ..., []) réexécute
+  // Math.random() une fois côté serveur (SSR) et une seconde fois côté client
+  // à l'hydratation, avec des valeurs forcément différentes -> mismatch
+  // d'hydratation React ("A tree hydrated but some attributes... didn't
+  // match"). En partant d'un tableau vide (identique serveur/client) puis en
+  // le remplissant après montage, aucune valeur aléatoire n'entre dans le
+  // HTML comparé lors de l'hydratation.
+  const [glowParticles, setGlowParticles] = useState<
+    { width: number; duration: number; delay: number; opacity: number }[]
+  >([]);
+  useEffect(() => {
+    setGlowParticles(Array.from({ length: 4 }).map(() => ({
+      width: 70 + Math.random() * 110,
+      duration: 5 + Math.random() * 7,
+      delay: Math.random() * 6,
+      opacity: 0.55 + Math.random() * 0.45,
+    })));
+  }, []);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
