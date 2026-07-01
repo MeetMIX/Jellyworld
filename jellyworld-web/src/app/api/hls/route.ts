@@ -159,7 +159,13 @@ export async function GET(req: NextRequest) {
 
     const fetchPromise = (async () => {
       const controller = new AbortController();
-      const timeoutMs = proxyUrl ? 20000 : 60000;
+      // Les playlists (.m3u8) peuvent déclencher/attendre le démarrage du transcodage
+      // côté Jellyfin (ffmpeg doit produire MinSegments avant de répondre) — ça peut
+      // prendre plus de 20s sur des sources gros bitrate (4K/HDR). Seuls les vrais
+      // segments binaires (.ts/.mp4, déjà prêts une fois la playlist renvoyée) gardent
+      // le timeout court.
+      const isPlaylistFetch = !proxyUrl || capturedUrl.includes(".m3u8");
+      const timeoutMs = isPlaylistFetch ? 60000 : 20000;
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
