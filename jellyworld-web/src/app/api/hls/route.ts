@@ -26,11 +26,29 @@ async function getPlaybackInfo(itemId: string, userId: string, token: string, au
         { Container: "webm", Type: "Video", VideoCodec: "vp8,vp9,av1", AudioCodec: "vorbis,opus" },
         { Container: "mp4,m4v", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus,flac,vorbis" },
         { Container: "mkv", Type: "Video", VideoCodec: "h264,vp9,av1", AudioCodec: "aac,mp3,opus,flac,vorbis" },
+        // Bibliothèques musicales : mp3 (tous débits/qualités confondus — le profil ne
+        // distingue pas le bitrate), flac, wav, aac/m4a, ogg/opus, tous nativement
+        // lisibles par le <video> HTML utilisé comme lecteur. wma n'a pas de lecture
+        // native fiable -> laissé hors DirectPlay pour forcer son transcodage (cf.
+        // TranscodingProfiles ci-dessous).
+        { Container: "mp3", Type: "Audio", AudioCodec: "mp3" },
+        { Container: "flac", Type: "Audio", AudioCodec: "flac" },
+        { Container: "wav", Type: "Audio", AudioCodec: "PCM_S16LE,PCM_S24LE,PCM_U8" },
+        { Container: "aac", Type: "Audio", AudioCodec: "aac" },
+        { Container: "m4a", Type: "Audio", AudioCodec: "aac,alac" },
+        { Container: "ogg,oga", Type: "Audio", AudioCodec: "vorbis,opus" },
       ],
       TranscodingProfiles: [
         {
           Container: "ts", Type: "Video", AudioCodec: "aac,mp3,opus", VideoCodec: "h264",
           Context: "Streaming", Protocol: "hls", MaxAudioChannels: "6",
+          MinSegments: "1", BreakOnNonKeyFrames: true,
+        },
+        // Repli pour les formats audio non couverts en DirectPlay (wma, ape, dsd...) :
+        // transcodage systématique vers mp3, lisible partout.
+        {
+          Container: "mp3", Type: "Audio", AudioCodec: "mp3",
+          Context: "Streaming", Protocol: "hls", MaxAudioChannels: "2",
           MinSegments: "1", BreakOnNonKeyFrames: true,
         },
       ],

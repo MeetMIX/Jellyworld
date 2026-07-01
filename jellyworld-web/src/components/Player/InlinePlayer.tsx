@@ -121,28 +121,16 @@ export default function InlinePlayer({ itemId, itemName, versions, resumeTicks =
           </div>
         </div>
 
-        {/* Boutons lecture */}
+        {/* Boutons lecture — l'action principale reprend le style du bouton
+            utilisateur de la navbar (fond noir, contour dégradé) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, justifyContent: "flex-end" }}>
           {hasResume && (
-            <button onClick={() => launch(false)} style={{
-              padding: "13px 20px", borderRadius: "var(--jw-r-md)",
-              background: "var(--jw-gradient)", border: "none",
-              fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              whiteSpace: "nowrap",
-            }}>
+            <button onClick={() => launch(false)} style={primaryBtnStyle}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
               Reprendre ({resumeMin}min)
             </button>
           )}
-          <button onClick={() => launch(hasResume)} style={{
-            padding: "13px 20px", borderRadius: "var(--jw-r-md)",
-            background: hasResume ? "rgba(255,255,255,0.08)" : "var(--jw-gradient)",
-            border: hasResume ? "1px solid rgba(255,255,255,0.12)" : "none",
-            fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            whiteSpace: "nowrap",
-          }}>
+          <button onClick={() => launch(hasResume)} style={hasResume ? secondaryBtnStyle : primaryBtnStyle}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
             {hasResume ? "Depuis le début" : "Regarder"}
           </button>
@@ -151,6 +139,28 @@ export default function InlinePlayer({ itemId, itemName, versions, resumeTicks =
     </div>
   );
 }
+
+// Bouton principal — même technique que le bouton utilisateur de NavBar.tsx :
+// fond noir + contour en dégradé de marque (un vrai gradient sur `border`
+// n'existe pas en CSS, d'où le double-background padding-box/border-box).
+const primaryBtnStyle: React.CSSProperties = {
+  padding: "13px 20px", borderRadius: "var(--jw-r-md)", boxSizing: "border-box",
+  border: "3px solid transparent",
+  backgroundColor: "#000",
+  backgroundImage: "linear-gradient(#000,#000), linear-gradient(110deg, #6B2FD9 0%, #B83FA0 50%, #E03050 100%)",
+  backgroundOrigin: "border-box",
+  backgroundClip: "padding-box, border-box",
+  fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer",
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  whiteSpace: "nowrap",
+};
+const secondaryBtnStyle: React.CSSProperties = {
+  padding: "13px 20px", borderRadius: "var(--jw-r-md)",
+  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
+  fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer",
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  whiteSpace: "nowrap",
+};
 
 const lblS: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, color: "var(--jw-text-3)",
