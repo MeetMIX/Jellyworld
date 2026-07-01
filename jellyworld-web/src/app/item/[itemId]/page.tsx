@@ -29,9 +29,24 @@ async function getVersions(itemId: string, userId: string, token: string) {
       const tags = (filename.match(/\[([^\]]+)\]/g) ?? [])
         .map((t: string) => t.replace(/\[|\]/g, ""))
         .filter((t: string) => !t.match(/^(IMDBID|tt\d+|tmdb=|tvdb=)/i));
+
+      // Label de qualité dérivé du flux vidéo réel — indispensable pour
+      // distinguer les versions groupées (ex: 1080p vs 4K) quand le nom de
+      // fichier ne contient pas de tag exploitable entre crochets.
+      const vs = (src.MediaStreams ?? []).find((s: any) => s.Type === "Video");
+      const h = vs?.Height;
+      const resLabel = h ? (h >= 2160 ? "4K" : h >= 1080 ? "1080p" : h >= 720 ? "720p" : `${h}p`) : null;
+      const codecLabel = vs?.Codec?.toUpperCase();
+      const sizeLabel = src.Size ? `${(src.Size / 1073741824).toFixed(1)} Go` : null;
+      const qualityLabel = [resLabel, codecLabel, sizeLabel].filter(Boolean).join(" · ");
+
+      const displayName = qualityLabel
+        ? (tags.length > 0 ? `${qualityLabel} — ${tags.join(" · ")}` : qualityLabel)
+        : (tags.length > 0 ? tags.join(" · ") : (src.Name || "Version originale"));
+
       return {
         Id: src.Id,
-        Name: tags.length > 0 ? tags.join(" · ") : (src.Name || "Version originale"),
+        Name: displayName,
         MediaStreams: src.MediaStreams ?? [],
         Path: src.Path,
       };

@@ -23,7 +23,7 @@ export default function MergeToolbar({ selectedIds, selectedNames, libraryId, on
       const res = await fetch("/api/merge-items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemIds: selectedIds }),
+        body: JSON.stringify({ itemIds: selectedIds, libraryId }),
       });
       const data = await res.json();
       if (data.ok) {

@@ -84,7 +84,12 @@ function enrich(item: any): JellyfinItem {
   return enriched;
 }
 
-const EXCLUDED_TYPES = ["boxsets", "playlists"];
+// "boxsets" (Collections/sagas) n'est plus exclu : c'est désormais une
+// bibliothèque automatique à part entière (cf. [libraryId]/page.tsx qui
+// bascule IncludeItemTypes=BoxSet pour cette bibliothèque précise). Les
+// bibliothèques Movie/Series classiques n'incluent jamais "BoxSet" dans leur
+// propre IncludeItemTypes, donc les collections n'y apparaissent pas.
+const EXCLUDED_TYPES = ["playlists"];
 
 async function jellyGet(url: string, revalidate = 300) {
   try {
@@ -189,9 +194,10 @@ export async function getLibraryShowcase(
     // Élargi : Movie/Series/MusicVideo/Video excluait Episode et Audio, donc
     // une bibliothèque Séries ou Musique (dont les items "de fond" sont des
     // Episode/Audio une fois IsNotFolder appliqué) ne retournait jamais rien.
+    // BoxSet couvre la bibliothèque automatique "Collections".
     const url = `${JELLYFIN_INTERNAL}/Users/${userId}/Items`
       + `?ParentId=${lib.Id}&Recursive=true`
-      + `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video,Audio,MusicAlbum,Photo`
+      + `&IncludeItemTypes=Movie,Series,Episode,MusicVideo,Video,Audio,MusicAlbum,Photo,BoxSet`
       + `&Filters=IsNotFolder&SortBy=Random&Limit=1`
       + `&Fields=BackdropImageTags,ImageTags`;
     const data = await jellyGet(url, 0);

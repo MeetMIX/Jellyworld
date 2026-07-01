@@ -108,7 +108,10 @@ export default function LibraryGrid({ items, libraryId }: { items: GridItem[]; l
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                     </div>
                   ) : (
-                    <Link href={`/item/${item.Id}`} style={{ display: "block" }}>
+                    // Une collection (BoxSet) n'est pas un média jouable : elle mène
+                    // vers la liste de ses films, via la même route que les
+                    // bibliothèques classiques, plutôt que vers la fiche/lecteur.
+                    <Link href={item.Type === "BoxSet" ? `/${item.Id}` : `/item/${item.Id}`} style={{ display: "block" }}>
                       <div style={{ aspectRatio: "2/3", position: "relative" }}>
                         <SafeImage src={item.posterUrl} alt={item.Name}
                           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />

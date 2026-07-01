@@ -13,6 +13,28 @@ export default function InlinePlayer({ itemId, itemName, versions, resumeTicks =
   const [selAudio, setSelAudio] = useState(-1);
   const [selSub, setSelSub] = useState(-1);
   const [savedTicks, setSavedTicks] = useState(resumeTicks);
+  const [ungrouping, setUngrouping] = useState(false);
+
+  async function ungroupVersions() {
+    if (!confirm("Séparer ces versions groupées ? Chaque fichier réapparaîtra comme un média distinct dans la bibliothèque.")) return;
+    setUngrouping(true);
+    try {
+      const res = await fetch("/api/merge-items", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        router.refresh();
+      } else {
+        alert(`Erreur : ${data.error ?? "séparation impossible"}`);
+      }
+    } catch {
+      alert("Erreur réseau");
+    }
+    setUngrouping(false);
+  }
 
   const audio = selVersion?.MediaStreams?.filter(s => s.Type === "Audio") ?? [];
   const subs  = selVersion?.MediaStreams?.filter(s => s.Type === "Subtitle") ?? [];
@@ -83,7 +105,16 @@ export default function InlinePlayer({ itemId, itemName, versions, resumeTicks =
 
         {versions.length > 1 && (
           <div>
-            <p style={lblS}>Version</p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <p style={lblS}>Version</p>
+              <button onClick={ungroupVersions} disabled={ungrouping} title="Séparer les versions groupées" style={{
+                background: "none", border: "none", cursor: ungrouping ? "not-allowed" : "pointer",
+                color: "var(--jw-text-3)", fontSize: 10, fontWeight: 700, textDecoration: "underline",
+                padding: 0, marginBottom: 8, opacity: ungrouping ? 0.5 : 1,
+              }}>
+                {ungrouping ? "…" : "Séparer"}
+              </button>
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {versions.map(v => (
                 <button key={v.Id} onClick={() => setSelVersion(v)} style={optStyle(selVersion.Id === v.Id)}>

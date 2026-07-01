@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getUserLibraries, getFirstUserId } from "@/lib/jellyfin";
+import { getUserLibraries, getFirstUserId, getItemById } from "@/lib/jellyfin";
 import { getSession } from "@/lib/auth";
 import NavBar from "@/components/NavBar/NavBar";
 import SortBar from "@/components/Library/SortBar";
@@ -13,15 +13,21 @@ type SortDir = "Ascending" | "Descending";
 
 async function fetchItems(
   parentId: string, userId: string, token: string,
-  sort: SortField, dir: SortDir, page: number, pageSize: number
+  sort: SortField, dir: SortDir, page: number, pageSize: number,
+  isCollections: boolean
 ) {
   const INTERNAL = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
   const PUBLIC   = process.env.NEXT_PUBLIC_JELLYFIN_URL || "http://192.168.220.148:8096";
   const API_KEY  = process.env.NEXT_PUBLIC_JELLYFIN_API_KEY || "";
 
+  // La bibliothèque automatique "Collections" (CollectionType=boxsets) ne
+  // contient que des BoxSet — absent des autres bibliothèques, qui utilisent
+  // Movie/Series/etc et n'incluent jamais BoxSet dans leur propre requête.
+  const includeTypes = isCollections ? "BoxSet" : "Movie,Series,MusicVideo,Video";
+
   const url = `${INTERNAL}/Users/${userId}/Items`
     + `?ParentId=${parentId}&Recursive=true`
-    + `&IncludeItemTypes=Movie,Series,MusicVideo,Video`
+    + `&IncludeItemTypes=${includeTypes}`
     // Champs minimaux pour la grille — réduit la réponse de 80%
     + `&Fields=PrimaryImageAspectRatio,ImageTags,PremiereDate,UserData`
     + `&SortBy=${sort}&SortOrder=${dir}`
@@ -66,14 +72,22 @@ export default async function LibraryPage({
   const page      = Math.max(0, parseInt(pageStr ?? "0", 10));
   const pageSize  = 100;
 
-  // Chargement parallèle — les bibliothèques sont cachées séparément
-  const [libraries, { items, total }] = await Promise.all([
-    getUserLibraries(session.userId),
-    fetchItems(libraryId, session.userId, session.token, sortField, sortDir, page, pageSize),
-  ]);
-
+  // Les bibliothèques doivent être connues avant de requêter les items : le
+  // type de contenu à demander (Movie/Series vs BoxSet) dépend du
+  // CollectionType de la bibliothèque courante ("Collections" ou classique).
+  const libraries = await getUserLibraries(session.userId);
   const currentLib = libraries.find(l => l.Id === libraryId);
+  const isCollections = currentLib?.CollectionType === "boxsets";
+  const { items, total } = await fetchItems(
+    libraryId, session.userId, session.token, sortField, sortDir, page, pageSize, isCollections
+  );
   const totalPages = Math.ceil(total / pageSize);
+
+  // Cas d'une collection précise (BoxSet cliqué depuis la bibliothèque
+  // "Collections") : ce n'est pas une bibliothèque top-level, donc absente de
+  // `libraries` — on va chercher son vrai nom pour le titre de la page.
+  const collectionItem = !currentLib ? await getItemById(libraryId, session.userId) : null;
+  const pageTitle = currentLib?.Name ?? collectionItem?.Name ?? "Collection";
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--jw-bg)", color: "var(--jw-text-1)" }}>
@@ -81,7 +95,7 @@ export default async function LibraryPage({
       <main style={{ padding: "calc(var(--jw-nav-height) + 32px) 40px 80px" }}>
         <div style={{ marginBottom: 16 }}>
           <h1 style={{ fontSize: 22, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>
-            {currentLib?.Name ?? "Collection"}
+            {pageTitle}
           </h1>
         </div>
 

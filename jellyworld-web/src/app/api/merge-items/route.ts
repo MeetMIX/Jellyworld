@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
 
 const INTERNAL = process.env.JELLYFIN_INTERNAL_URL || "http://jellyfin-backend:8096";
@@ -7,7 +8,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const { itemIds } = await req.json();
+  const { itemIds, libraryId } = await req.json();
   if (!itemIds || itemIds.length < 2) {
     return NextResponse.json({ error: "Sélectionnez au moins 2 médias" }, { status: 400 });
   }
@@ -34,6 +35,13 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    // Jellyfin exclut bien l'item secondaire de la liste après un merge, mais
+    // notre fetch de la grille bibliothèque est mis en cache 5 min
+    // (next:{revalidate:300}) — sans invalidation explicite, router.refresh()
+    // retombe sur cette réponse mise en cache et continue d'afficher 2 tuiles.
+    if (libraryId) revalidatePath(`/${libraryId}`);
+    for (const id of itemIds) revalidatePath(`/item/${id}`);
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -45,7 +53,7 @@ export async function DELETE(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const { itemId } = await req.json();
+  const { itemId, libraryId } = await req.json();
   const headers = { Authorization: `MediaBrowser Token="${session.token}"` };
 
   try {
@@ -61,6 +69,10 @@ export async function DELETE(req: NextRequest) {
         detail: body.slice(0, 200),
       }, { status: 400 });
     }
+
+    revalidatePath(`/item/${itemId}`);
+    if (libraryId) revalidatePath(`/${libraryId}`);
+
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
